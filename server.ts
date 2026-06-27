@@ -164,47 +164,53 @@ app.get("/api/server-stats", async (req, res) => {
       return res.json(cachedStats);
     }
 
+    const db = readDB();
+    let accounts = 0;
+    let levels = 0;
+
     const apiKey = process.env.FOREVER_HOST_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "Forever Host API key is missing" });
-    }
+    if (apiKey) {
+      // We assume the actual URL based on documentation.
+      // Usually it's something like /v1/servers/:id/stats or similar.
+      // If it's a specific endpoint, adjust accordingly.
+      const response = await fetch("https://api.forever-host.xyz/server/data?node=n01&gdpsid=0004", {
+        headers: {
+          "Authorization": "Bearer " + apiKey,
+          "Content-Type": "application/json"
+        }
+      });
 
-    // We assume the actual URL based on documentation. 
-    // Usually it's something like /v1/servers/:id/stats or similar.
-    // If it's a specific endpoint, adjust accordingly.
-    const response = await fetch("https://api.forever-host.xyz/server/data?node=n01&gdpsid=0004", {
-      headers: {
-        "Authorization": "Bearer " + apiKey,
-        "Content-Type": "application/json"
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stats: ${response.statusText}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stats: ${response.statusText}`);
-    }
+      const json = await response.json();
+      if (json.status !== "success" || !json.data) {
+         throw new Error(`API returned error: ${json.message || 'unknown'}`);
+      }
 
-    const json = await response.json();
-    if (json.status !== "success" || !json.data) {
-       throw new Error(`API returned error: ${json.message || 'unknown'}`);
+      accounts = json.data.userCount || 0;
+      levels = json.data.levelCount || 0;
     }
 
     const data = {
-      accounts: json.data.userCount || 0,
-      levels: json.data.levelCount || 0,
+      accounts,
+      levels,
       rates: 0, // Not provided by this endpoint
-      songs: 0, // Not provided by this endpoint
+      songs: typeof db.songs === "number" ? db.songs : 0,
     };
     cache.set("serverStats", data);
     
     res.json(data);
   } catch (error) {
     console.error("Error fetching server stats:", error);
+    const db = readDB();
     // Fallback data on error
     res.json({
       accounts: 0,
       levels: 0,
       rates: 0,
-      songs: 0
+      songs: typeof db.songs === "number" ? db.songs : 0,
     });
   }
 });
