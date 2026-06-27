@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import NodeCache from "node-cache";
 import fs from "fs";
 import "dotenv/config";
+import { load } from "cheerio";
 
 const app = express();
 const PORT = 3000;
@@ -205,6 +206,93 @@ app.get("/api/server-stats", async (req, res) => {
       rates: 0,
       songs: 0
     });
+  }
+});
+
+// --- GDPS Music Count API (Web Scraping) ---
+/**
+ * Scrapes the custom music count from the Forever Host control panel
+ * Requires GDPS_USERNAME and GDPS_SESSION_TOKEN environment variables
+ */
+async function fetchGDPSMusicCount(): Promise<number | null> {
+  try {
+    const username = process.env.GDPS_USERNAME;
+    const sessionToken = process.env.GDPS_SESSION_TOKEN;
+
+    if (!username || !sessionToken) {
+      console.warn("GDPS credentials missing: GDPS_USERNAME or GDPS_SESSION_TOKEN not set");
+      return null;
+    }
+
+    // Fetch the music panel page with session credentials
+    const response = await fetch("https://n01.forever-host.xyz/0004/panel/music/list", {
+      headers: {
+        "Cookie": `GDPS_USERNAME=${username}; GDPS_SESSION_TOKEN=${sessionToken}`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: Failed to fetch music list page`);
+    }
+
+    const html = await response.text();
+    const $ = load(html);
+
+    // Parse the music count from the page
+    // Look for patterns like "Всего музыки: 42" or similar count indicators
+    // Adjust selector based on actual HTML structure
+    let musicCount = 0;
+
+    // Try multiple parsing strategies
+    // Strategy 1: Look for text content containing music count
+    const textContent = $.text();
+    const countMatch = textContent.match(/(?:Всего|Total|всего|total)[\s\D]*?(\d+)/i);
+    if (countMatch) {
+      musicCount = parseInt(countMatch[1], 10);
+    }
+
+    // Strategy 2: Count table rows or list items (if no explicit count found)
+    if (musicCount === 0) {
+      const musicRows = $("table tbody tr, .music-list li, [data-music-item]").length;
+      if (musicRows > 0) {
+        musicCount = musicRows;
+      }
+    }
+
+    return musicCount;
+  } catch (error) {
+    console.error("Error fetching GDPS music count:", error);
+    return null;
+  }
+}
+
+app.get("/api/gdps/music/count", async (req, res) => {
+  try {
+    // Check cache first
+    const cacheKey = "gdpsMusicCount";
+    const cachedCount = cache.get(cacheKey);
+    if (cachedCount !== undefined) {
+      return res.json({ count: cachedCount, cached: true });
+    }
+
+    // Fetch fresh data
+    const count = await fetchGDPSMusicCount();
+
+    if (count === null) {
+      return res.status(503).json({
+        error: "Unable to fetch music count",
+        details: "GDPS credentials not configured or connection failed"
+      });
+    }
+
+    // Cache the result
+    cache.set(cacheKey, count);
+
+    res.json({ count, cached: false });
+  } catch (error) {
+    console.error("Error in /api/gdps/music/count:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
