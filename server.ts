@@ -4,7 +4,7 @@ import { createServer as createViteServer } from "vite";
 import NodeCache from "node-cache";
 import fs from "fs";
 import "dotenv/config";
-import { load } from "cheerio";
+import { chromium, Browser, Page } from "playwright";
 
 const app = express();
 const PORT = 3000;
@@ -209,13 +209,26 @@ app.get("/api/server-stats", async (req, res) => {
   }
 });
 
-// --- GDPS Music Count API (Web Scraping) ---
+// --- GDPS Music Count API (Playwright Browser Automation) ---
 /**
  * Scrapes the custom music count from the Forever Host control panel
- * First authenticates with username/password, then parses the music list
+ * Uses Playwright to emulate a real browser and handle authentication
  * Requires GDPS_USERNAME and GDPS_PASSWORD environment variables
  */
+let browser: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  if (!browser) {
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-blink-features=AutomationControlled"]
+    });
+  }
+  return browser;
+}
+
 async function fetchGDPSMusicCount(): Promise<number | null> {
+  let page: Page | null = null;
   try {
     const username = process.env.GDPS_USERNAME;
     const password = process.env.GDPS_PASSWORD;
@@ -225,76 +238,58 @@ async function fetchGDPSMusicCount(): Promise<number | null> {
       return null;
     }
 
-    // Step 1: Create a fetch instance with cookie jar simulation
-    // We'll store cookies manually for this session
-    let cookies = "";
+    const browser = await getBrowser();
+    page = await browser.newPage();
 
-    // Step 2: Authenticate and get session cookies
-    const loginResponse = await fetch("https://n01.forever-host.xyz/0004/panel/music/list", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      },
-      body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-      redirect: "manual"
+    console.log("Navigating to Forever Host panel...");
+    
+    // Navigate to the music list page
+    await page.goto("https://n01.forever-host.xyz/0004/panel/music/list", {
+      waitUntil: "networkidle",
+      timeout: 30000
     });
 
-    // Extract cookies from Set-Cookie headers
-    const setCookieHeaders = loginResponse.headers.getSetCookie?.() || [];
-    if (setCookieHeaders.length > 0) {
-      cookies = setCookieHeaders
-        .map((cookie: string) => cookie.split(";")[0])
-        .join("; ");
+    // Check if we need to log in (look for login form)
+    const loginFormExists = await page.locator("input[name='username'], input[name='user'], input[type='text']").first().isVisible().catch(() => false);
+
+    if (loginFormExists) {
+      console.log("Login form detected. Authenticating...");
+      
+      // Fill in the login form
+      await page.fill("input[name='username'], input[name='user'], input[type='text']", username);
+      await page.fill("input[name='password'], input[type='password']", password);
+
+      // Submit the form
+      await page.click("button[type='submit'], input[type='submit']");
+
+      // Wait for navigation after login
+      await page.waitForNavigation({ waitUntil: "networkidle", timeout: 30000 }).catch(() => {});
+      await page.waitForTimeout(1000); // Small delay to ensure page loads
     }
 
-    // Step 3: Fetch the music list page with authenticated session
-    const listResponse = await fetch("https://n01.forever-host.xyz/0004/panel/music/list", {
-      headers: {
-        "Cookie": cookies,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      }
-    });
+    // Wait for the music list to be visible
+    const musicListSelector = "table tbody tr, .music-list li, [data-music-item], .music-item";
+    await page.waitForSelector(musicListSelector, { timeout: 10000 }).catch(() => {});
 
-    if (!listResponse.ok) {
-      throw new Error(`HTTP ${listResponse.status}: Failed to fetch music list page`);
-    }
-
-    const html = await listResponse.text();
-    const $ = load(html);
-
-    // Step 4: Parse the music count from the list
-    // Count all table rows (excluding header) or list items
-    let musicCount = 0;
-
-    // Strategy 1: Count table body rows (most common for music list)
-    const tableRows = $("table tbody tr").length;
-    if (tableRows > 0) {
-      musicCount = tableRows;
-    }
-
-    // Strategy 2: If no table, count list items
-    if (musicCount === 0) {
-      const listItems = $(".music-list li, [data-music-item], .music-item").length;
-      if (listItems > 0) {
-        musicCount = listItems;
-      }
-    }
-
-    // Strategy 3: Look for text containing count like "Total: 42" or "Всего: 42"
-    if (musicCount === 0) {
-      const textContent = $.text();
-      const countMatch = textContent.match(/(?:Всего|Total|Count|songs?)[\s\D]*?(\d+)/i);
-      if (countMatch) {
-        musicCount = parseInt(countMatch[1], 10);
-      }
-    }
+    // Count the music entries
+    const musicCount = await page.locator(musicListSelector).count();
 
     console.log(`Fetched GDPS music count: ${musicCount}`);
-    return musicCount;
+    return musicCount > 0 ? musicCount : null;
   } catch (error) {
     console.error("Error fetching GDPS music count:", error);
     return null;
+  } finally {
+    if (page) {
+      await page.close().catch(() => {});
+    }
+  }
+}
+
+async function closeBrowser() {
+  if (browser) {
+    await browser.close();
+    browser = null;
   }
 }
 
@@ -313,7 +308,7 @@ app.get("/api/gdps/music/count", async (req, res) => {
     if (count === null) {
       return res.status(503).json({
         error: "Unable to fetch music count",
-        details: "GDPS credentials not configured or connection failed"
+        details: "GDPS credentials not configured, connection failed, or music list not found"
       });
     }
 
@@ -343,8 +338,18 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+  });
+
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    console.log("Shutting down server...");
+    await closeBrowser();
+    server.close(() => {
+      console.log("Server closed");
+      process.exit(0);
+    });
   });
 }
 

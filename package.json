@@ -19,6 +19,7 @@
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "playwright": "^1.40.0",
     "firebase": "^12.15.0",
     "i18next": "^26.3.3",
     "lucide-react": "^0.546.0",
