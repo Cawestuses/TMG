@@ -212,54 +212,85 @@ app.get("/api/server-stats", async (req, res) => {
 // --- GDPS Music Count API (Web Scraping) ---
 /**
  * Scrapes the custom music count from the Forever Host control panel
- * Requires GDPS_USERNAME and GDPS_SESSION_TOKEN environment variables
+ * First authenticates with username/password, then parses the music list
+ * Requires GDPS_USERNAME and GDPS_PASSWORD environment variables
  */
 async function fetchGDPSMusicCount(): Promise<number | null> {
   try {
     const username = process.env.GDPS_USERNAME;
-    const sessionToken = process.env.GDPS_SESSION_TOKEN;
+    const password = process.env.GDPS_PASSWORD;
 
-    if (!username || !sessionToken) {
-      console.warn("GDPS credentials missing: GDPS_USERNAME or GDPS_SESSION_TOKEN not set");
+    if (!username || !password) {
+      console.warn("GDPS credentials missing: GDPS_USERNAME or GDPS_PASSWORD not set");
       return null;
     }
 
-    // Fetch the music panel page with session credentials
-    const response = await fetch("https://n01.forever-host.xyz/0004/panel/music/list", {
+    // Step 1: Create a fetch instance with cookie jar simulation
+    // We'll store cookies manually for this session
+    let cookies = "";
+
+    // Step 2: Authenticate and get session cookies
+    const loginResponse = await fetch("https://n01.forever-host.xyz/0004/panel/music/list", {
+      method: "POST",
       headers: {
-        "Cookie": `GDPS_USERNAME=${username}; GDPS_SESSION_TOKEN=${sessionToken}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      },
+      body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+      redirect: "manual"
+    });
+
+    // Extract cookies from Set-Cookie headers
+    const setCookieHeaders = loginResponse.headers.getSetCookie?.() || [];
+    if (setCookieHeaders.length > 0) {
+      cookies = setCookieHeaders
+        .map((cookie: string) => cookie.split(";")[0])
+        .join("; ");
+    }
+
+    // Step 3: Fetch the music list page with authenticated session
+    const listResponse = await fetch("https://n01.forever-host.xyz/0004/panel/music/list", {
+      headers: {
+        "Cookie": cookies,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: Failed to fetch music list page`);
+    if (!listResponse.ok) {
+      throw new Error(`HTTP ${listResponse.status}: Failed to fetch music list page`);
     }
 
-    const html = await response.text();
+    const html = await listResponse.text();
     const $ = load(html);
 
-    // Parse the music count from the page
-    // Look for patterns like "Всего музыки: 42" or similar count indicators
-    // Adjust selector based on actual HTML structure
+    // Step 4: Parse the music count from the list
+    // Count all table rows (excluding header) or list items
     let musicCount = 0;
 
-    // Try multiple parsing strategies
-    // Strategy 1: Look for text content containing music count
-    const textContent = $.text();
-    const countMatch = textContent.match(/(?:Всего|Total|всего|total)[\s\D]*?(\d+)/i);
-    if (countMatch) {
-      musicCount = parseInt(countMatch[1], 10);
+    // Strategy 1: Count table body rows (most common for music list)
+    const tableRows = $("table tbody tr").length;
+    if (tableRows > 0) {
+      musicCount = tableRows;
     }
 
-    // Strategy 2: Count table rows or list items (if no explicit count found)
+    // Strategy 2: If no table, count list items
     if (musicCount === 0) {
-      const musicRows = $("table tbody tr, .music-list li, [data-music-item]").length;
-      if (musicRows > 0) {
-        musicCount = musicRows;
+      const listItems = $(".music-list li, [data-music-item], .music-item").length;
+      if (listItems > 0) {
+        musicCount = listItems;
       }
     }
 
+    // Strategy 3: Look for text containing count like "Total: 42" or "Всего: 42"
+    if (musicCount === 0) {
+      const textContent = $.text();
+      const countMatch = textContent.match(/(?:Всего|Total|Count|songs?)[\s\D]*?(\d+)/i);
+      if (countMatch) {
+        musicCount = parseInt(countMatch[1], 10);
+      }
+    }
+
+    console.log(`Fetched GDPS music count: ${musicCount}`);
     return musicCount;
   } catch (error) {
     console.error("Error fetching GDPS music count:", error);
