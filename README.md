@@ -1,20 +1,67 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# TMG DPS Web Portal
 
-# Run and deploy your AI Studio app
+Официальный веб-портал приватного сервера Geometry Dash — **TMG DPS**. 
+Сайт предоставляет пользователям актуальную информацию о сервере, ссылки на скачивание клиентов, последние новости, ответы на частые вопросы и список команды проекта.
 
-This contains everything you need to run your app locally.
+## 🚀 Ключевые возможности (Features)
 
-View your app in AI Studio: https://ai.studio/apps/cc76a5e5-6a8b-4bcc-b035-a8cb4b3689a4
+- **Многоязычность (i18n):** Поддержка русского (RU) и английского (EN) языков.
+- **Динамический контент:** Разделы "Новости", "FAQ" и "Команда" подгружаются из базы данных.
+- **Загрузки (Downloads):** Структурированный каталог для скачивания клиентов под разные платформы (Android, Windows) и с поддержкой модификаций (Geode).
+- **Панель администратора (Admin Panel):** Защищенная зона для управления контентом сайта (добавление, редактирование и удаление новостей, участников стаффа и вопросов).
+- **Интеграция TMG List:** Промо-блок и ссылки на официальный рейтинг сложнейших демонов сервера.
 
-## Run Locally
+## 🛠 Техническая реализация (Tech Stack)
 
-**Prerequisites:**  Node.js
+Проект построен на современном и производительном веб-стеке:
 
+### Фронтенд
+- **Основа:** [React 18+](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Сборщик:** [Vite](https://vitejs.dev/)
+- **Стилизация:** [Tailwind CSS v4](https://tailwindcss.com/) — использование utility-first подходов для адаптивного дизайна и темной темы.
+- **Анимации:** [Framer Motion](https://motion.dev/) — плавные переходы между страницами и анимации появления элементов (Glow-карточки).
+- **Роутинг:** [React Router v6](https://reactrouter.com/) — клиентская маршрутизация.
+- **Локализация:** `i18next` и `react-i18next`.
+- **Иконки:** [Lucide React](https://lucide.dev/).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Бэкенд / База данных
+В качестве Serverless backend-решения используется платформа **Firebase**:
+- **База данных:** **Cloud Firestore** — масштабируемая NoSQL база данных для хранения коллекций `news`, `staff` и `faq`.
+- **Аутентификация:** **Firebase Auth** — защищенный доступ к разделу `/admin` по Email и паролю.
+- **Security Rules:** Настроены правила безопасности Firestore, разрешающие чтение данных всем посетителям, но ограничивающие права на запись только авторизованным администраторам.
+
+## 📂 Структура проекта
+
+```text
+/
+├── public/               # Статические ассеты (логотипы, превью картинки)
+├── src/
+│   ├── components/       # Переиспользуемые UI-компоненты (Layout, GlowCard)
+│   ├── i18n/             # Словари локализации (RU / EN) в config.ts
+│   ├── lib/              # Утилиты и конфигурация (в т.ч. firebase.ts)
+│   ├── pages/            # Страницы приложения (Home, News, Staff, Downloads, FAQ)
+│   │   └── admin/        # Подмодули админ-панели (управление новостями, FAQ и стаффом)
+│   ├── types/            # Общие TypeScript-интерфейсы (gdps.ts)
+│   ├── App.tsx           # Корневой компонент с настройкой маршрутов
+│   ├── main.tsx          # Точка входа в React-приложение
+│   └── index.css         # Глобальные стили и инициализация Tailwind CSS
+├── firestore.rules       # Правила безопасности базы данных Firestore
+├── firebase-blueprint.json # Схема начальных данных для базы
+└── package.json          # Зависимости и скрипты сборки
+```
+
+## 💻 Разработка и запуск
+
+1. Установите зависимости:
+   ```bash
+   npm install
+   ```
+2. Запустите сервер для разработки:
+   ```bash
+   npm run dev
+   ```
+3. Для сборки production-версии:
+   ```bash
+   npm run build
+   ```
+   Собранные файлы появятся в директории `dist/`.
