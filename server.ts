@@ -15,12 +15,18 @@ app.use(express.json());
 // --- Local Database Mock ---
 const DB_FILE = path.join(process.cwd(), "data.json");
 if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify({ news: [], staff: [], faq: [] }, null, 2));
+  fs.writeFileSync(
+    DB_FILE,
+    JSON.stringify({ news: [], staff: [], faq: [], songs: 0 }, null, 2)
+  );
 }
 
 function readDB() {
   const db = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
   if (!db.faq) db.faq = [];
+  if (!db.news) db.news = [];
+  if (!db.staff) db.staff = [];
+  if (typeof db.songs !== "number") db.songs = 0;
   return db;
 }
 
@@ -159,12 +165,16 @@ app.delete("/api/faq/:id", requireAuth, (req, res) => {
 // Proxy route for server stats
 app.get("/api/server-stats", async (req, res) => {
   try {
+    const db = readDB();
     const cachedStats = cache.get("serverStats");
     if (cachedStats) {
-      return res.json(cachedStats);
+      const cachedData = cachedStats as any;
+      return res.json({
+        ...cachedData,
+        songs: typeof db.songs === "number" ? db.songs : 0,
+      });
     }
 
-    const db = readDB();
     let accounts = 0;
     let levels = 0;
 
@@ -200,7 +210,7 @@ app.get("/api/server-stats", async (req, res) => {
       songs: typeof db.songs === "number" ? db.songs : 0,
     };
     cache.set("serverStats", data);
-    
+
     res.json(data);
   } catch (error) {
     console.error("Error fetching server stats:", error);
