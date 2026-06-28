@@ -7,7 +7,7 @@ import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
 app.use(express.json());
@@ -355,7 +355,9 @@ async function startServer() {
   }
 
   const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    const addr = server.address();
+    const actualPort = typeof addr === "object" && addr !== null && "port" in addr ? addr.port : PORT;
+    console.log(`Server running on port ${actualPort}`);
   });
 
   // Graceful shutdown

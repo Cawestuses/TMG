@@ -136,7 +136,7 @@ export function Home() {
           
           <GlowCard delay={0.4} className="p-6 flex flex-col items-center text-center" glowColor="accent">
             <Music className="w-8 h-8 text-pink-500 mb-4" />
-            <div className="text-3xl font-bold font-display mb-1">
+            <div data-testid="songs-count" className="text-3xl font-bold font-display mb-1">
               {loading ? "..." : stats?.songs?.toLocaleString() || "0"}
             </div>
             <div className="text-sm text-gray-400">{t("stats.songs")}</div>
