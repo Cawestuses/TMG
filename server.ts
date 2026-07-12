@@ -30,6 +30,11 @@ function readDB() {
   return db;
 }
 
+function getSongCountFromDB() {
+  const db = readDB();
+  return typeof db.songs === "number" ? db.songs : 0;
+}
+
 function writeDB(data: any) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
@@ -165,13 +170,13 @@ app.delete("/api/faq/:id", requireAuth, (req, res) => {
 // Proxy route for server stats
 app.get("/api/server-stats", async (req, res) => {
   try {
-    const db = readDB();
+    const songCount = getSongCountFromDB();
     const cachedStats = cache.get("serverStats");
     if (cachedStats) {
       const cachedData = cachedStats as any;
       return res.json({
         ...cachedData,
-        songs: typeof db.songs === "number" ? db.songs : 0,
+        songs: songCount,
       });
     }
 
@@ -207,20 +212,19 @@ app.get("/api/server-stats", async (req, res) => {
       accounts,
       levels,
       rates: 0, // Not provided by this endpoint
-      songs: typeof db.songs === "number" ? db.songs : 0,
+      songs: songCount,
     };
     cache.set("serverStats", data);
 
     res.json(data);
   } catch (error) {
     console.error("Error fetching server stats:", error);
-    const db = readDB();
     // Fallback data on error
     res.json({
       accounts: 0,
       levels: 0,
       rates: 0,
-      songs: typeof db.songs === "number" ? db.songs : 0,
+      songs: getSongCountFromDB(),
     });
   }
 });

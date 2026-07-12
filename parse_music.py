@@ -21,6 +21,7 @@ def save_song_count(count: int):
         "news": [],
         "staff": [],
         "faq": [],
+        "songs": 0,
     }
 
     if os.path.exists(DATA_FILE):

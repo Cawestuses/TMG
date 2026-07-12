@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { GlowCard } from "@/src/components/GlowCard";
 import { Link } from "react-router-dom";
-import { ArrowRight, Users, Box, Star, Music, ServerCrash } from "lucide-react";
+import { ArrowRight, Users, Box, Music } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ServerStats } from "@/src/types/gdps";
 
@@ -109,7 +109,7 @@ export function Home() {
           <h2 className="text-2xl font-display font-bold">Live Statistics</h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <GlowCard delay={0.1} className="p-6 flex flex-col items-center text-center" glowColor="primary">
             <Users className="w-8 h-8 text-primary mb-4" />
             <div className="text-3xl font-bold font-display mb-1">
@@ -126,17 +126,9 @@ export function Home() {
             <div className="text-sm text-gray-400">{t("stats.levels")}</div>
           </GlowCard>
           
-          <GlowCard delay={0.3} className="p-6 flex flex-col items-center text-center" glowColor="primary">
-            <Star className="w-8 h-8 text-yellow-500 mb-4" />
-            <div className="text-3xl font-bold font-display mb-1">
-              {loading ? "..." : stats?.rates?.toLocaleString() || "0"}
-            </div>
-            <div className="text-sm text-gray-400">{t("stats.rates")}</div>
-          </GlowCard>
-          
           <GlowCard delay={0.4} className="p-6 flex flex-col items-center text-center" glowColor="accent">
             <Music className="w-8 h-8 text-pink-500 mb-4" />
-            <div className="text-3xl font-bold font-display mb-1">
+            <div data-testid="songs-count" className="text-3xl font-bold font-display mb-1">
               {loading ? "..." : stats?.songs?.toLocaleString() || "0"}
             </div>
             <div className="text-sm text-gray-400">{t("stats.songs")}</div>
