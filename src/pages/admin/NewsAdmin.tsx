@@ -106,41 +106,31 @@ export function NewsAdmin() {
     }, 50);
   };
 
-  // Client-side file uploader to base64 and server proxy
+  // Upload image as multipart/form-data
   const handleFileUpload = async (file: File) => {
     if (!file) return;
     setUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = reader.result as string;
-        const token = localStorage.getItem("admin_token");
+      const token = localStorage.getItem("admin_token");
+      const formData = new FormData();
+      formData.append("image", file);
 
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            filename: file.name,
-            fileData: base64Data
-          })
-        });
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
 
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error || "Failed to upload");
-        }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to upload");
+      }
 
-        const data = await res.json();
-        // Insert markdown tag automatically at current cursor position
-        insertAtCursor(`![](${data.url})`);
-        
-        // Save url to session gallery
-        setGallery(prev => [data.url, ...prev]);
-      };
-      reader.readAsDataURL(file);
+      const data = await res.json();
+      insertAtCursor(`![](${data.url})`);
+      setGallery(prev => [data.url, ...prev]);
     } catch (err) {
       console.error(err);
       alert("Не удалось загрузить изображение. Убедитесь, что размер файла не превышает лимит.");

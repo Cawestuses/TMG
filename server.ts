@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import NodeCache from "node-cache";
 import fs from "fs";
+import multer from "multer";
 import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
 
@@ -10,7 +11,29 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || "image.png");
+      cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only images are allowed"));
+  }
+});
+
+const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 // --- Local Database Mock ---
 const DB_FILE = path.join(process.cwd(), "data.json");
@@ -62,6 +85,27 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
     res.status(401).json({ error: "Unauthorized" });
   }
 }
+
+app.post("/api/upload", requireAuth, (req, res, next) => {
+  upload.single("image")(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || "Failed to upload image" });
+    }
+
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) {
+        return res.status(400).json({ error: "No image file provided" });
+      }
+
+      const safeName = path.basename(file.filename);
+      res.json({ url: `/uploads/${safeName}` });
+    } catch (error) {
+      console.error("Upload failed:", error);
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+});
 
 // --- News API ---
 app.get("/api/news", (req, res) => {
