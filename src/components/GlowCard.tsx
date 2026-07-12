@@ -7,6 +7,7 @@ interface GlowCardProps {
   className?: string;
   glowColor?: "primary" | "accent" | "none";
   delay?: number;
+  key?: any;
 }
 
 export function GlowCard({ children, className, glowColor = "primary", delay = 0 }: GlowCardProps) {

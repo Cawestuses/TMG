@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { StaffMember, StaffCategory } from "@/src/types/gdps";
 import { Plus, Edit2, Trash2, X } from "lucide-react";
 

@@ -48,7 +48,7 @@ export function FAQ() {
   );
 }
 
-function FAQItem({ question, answer, delay }: { question: string, answer: string, delay: number }) {
+function FAQItem({ question, answer, delay }: { question: string, answer: string, delay: number, key?: any }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (

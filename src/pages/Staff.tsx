@@ -1,7 +1,7 @@
+import React, { useState, useEffect } from "react";
 import { GlowCard } from "@/src/components/GlowCard";
 import { StaffMember } from "@/src/types/gdps";
 import { Users, Shield, Gamepad2, MessageSquare } from "lucide-react";
-import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 export function Staff() {
