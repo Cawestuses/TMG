@@ -35,7 +35,7 @@ const resources = {
       },
       "downloads": {
         "title": "Загрузки",
-        "subtitle": "Скачайте актуальные версии клиента TMG DPS для вашего устройства. Версия приватки: ",
+        "subtitle": "Скачайте актуальные версии клиента TMGDPS для вашего устройства. Версия приватки: ",
         "version": "V. 2.2081",
         "desc_android": "Основная версия клиента для Android устройств.",
         "desc_windows": "Основная версия клиента для ПК (Windows).",
@@ -56,7 +56,7 @@ const resources = {
       },
       "faq": {
         "title": "Частые вопросы",
-        "subtitle": "Ответы на самые популярные вопросы по серверу TMG DPS.",
+        "subtitle": "Ответы на самые популярные вопросы по серверу TMGDPS.",
         "loading": "Загрузка вопросов...",
         "empty": "Пока нет вопросов."
       },
@@ -70,7 +70,7 @@ const resources = {
       },
       "news": {
         "title": "Новости сервера",
-        "subtitle": "Последние обновления, ивенты и анонсы TMG DPS.",
+        "subtitle": "Последние обновления, ивенты и анонсы TMGDPS.",
         "loading": "Загрузка новостей...",
         "empty": "Пока нет новостей."
       }
@@ -109,7 +109,7 @@ const resources = {
       },
       "downloads": {
         "title": "Downloads",
-        "subtitle": "Download the latest versions of the TMG DPS client for your device. Private server version: ",
+        "subtitle": "Download the latest versions of the TMGDPS client for your device. Private server version: ",
         "version": "V. 2.2081",
         "desc_android": "Main client version for Android devices.",
         "desc_windows": "Main client version for PC (Windows).",
@@ -130,7 +130,7 @@ const resources = {
       },
       "faq": {
         "title": "Frequently Asked Questions",
-        "subtitle": "Answers to the most popular questions about the TMG DPS server.",
+        "subtitle": "Answers to the most popular questions about the TMGDPS server.",
         "loading": "Loading questions...",
         "empty": "No questions yet."
       },
@@ -144,7 +144,7 @@ const resources = {
       },
       "news": {
         "title": "Server News",
-        "subtitle": "Latest updates, events and announcements for TMG DPS.",
+        "subtitle": "Latest updates, events and announcements for TMGDPS.",
         "loading": "Loading news...",
         "empty": "No news yet."
       }
