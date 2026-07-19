@@ -36,9 +36,13 @@ export function Staff() {
         {members.map((member, idx) => (
           <GlowCard key={member.id} delay={idx * 0.1} glowColor={member.role.toLowerCase() === 'admin' ? 'accent' : 'primary'}>
             <div className="p-6 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-surface border border-white/10 flex items-center justify-center font-bold text-xl uppercase bg-gradient-to-br from-gray-800 to-gray-900 shadow-inner">
-                {member.nickname.charAt(0)}
-              </div>
+              {member.avatarUrl ? (
+                <img src={member.avatarUrl} alt={member.nickname} className="w-12 h-12 rounded-full object-cover border border-white/10" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-surface border border-white/10 flex items-center justify-center font-bold text-xl uppercase bg-gradient-to-br from-gray-800 to-gray-900 shadow-inner">
+                  {member.nickname.charAt(0)}
+                </div>
+              )}
               <div className="flex-1">
                 <h3 className="font-bold text-lg">{member.nickname}</h3>
                 <p className="text-sm text-primary/80">{member.role}</p>

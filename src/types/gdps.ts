@@ -14,6 +14,7 @@ export interface StaffMember {
   nickname: string;
   role: string;
   category: StaffCategory;
+  avatarUrl?: string;
   socialLink?: string;
   order: number;
 }

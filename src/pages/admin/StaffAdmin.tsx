@@ -6,6 +6,7 @@ export function StaffAdmin() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMember, setEditingMember] = useState<Partial<StaffMember> | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const fetchStaff = async () => {
     setLoading(true);
@@ -34,6 +35,7 @@ export function StaffAdmin() {
         nickname: editingMember.nickname || "",
         role: editingMember.role || "",
         category: editingMember.category || "private_server",
+        avatarUrl: editingMember.avatarUrl || undefined,
         socialLink: editingMember.socialLink || "",
         order: Number(editingMember.order) || 0,
       };
@@ -139,6 +141,47 @@ export function StaffAdmin() {
               />
             </div>
             <div className="md:col-span-2">
+                <label className="block text-sm text-gray-400 mb-1">Аватар (изображение)</label>
+                <div className="flex items-center gap-4 mb-2">
+                  {editingMember.avatarUrl ? (
+                    <img src={editingMember.avatarUrl} alt="avatar" className="w-16 h-16 rounded-full object-cover border" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-surface border border-white/10 flex items-center justify-center font-bold text-xl uppercase">
+                      {editingMember.nickname ? editingMember.nickname.charAt(0) : "?"}
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files && e.target.files[0];
+                      if (!file) return;
+                      setUploading(true);
+                      try {
+                        const token = localStorage.getItem("admin_token");
+                        const fd = new FormData();
+                        fd.append("image", file);
+                        const res = await fetch("/api/upload", {
+                          method: "POST",
+                          headers: {
+                            "Authorization": `Bearer ${token}`,
+                          },
+                          body: fd
+                        });
+                        if (!res.ok) throw new Error("Upload failed");
+                        const json = await res.json();
+                        setEditingMember({ ...editingMember, avatarUrl: json.url });
+                      } catch (err) {
+                        console.error("Upload error:", err);
+                      } finally {
+                        setUploading(false);
+                      }
+                    }}
+                    className="text-sm"
+                    disabled={uploading}
+                  />
+                  {uploading && <div className="text-sm text-gray-400">Загрузка...</div>}
+                </div>
               <label className="block text-sm text-gray-400 mb-1">
                 {editingMember.category === 'discord_moderation' ? 'Discord ник (опционально)' : 'Ник в Geometry Dash (опционально)'}
               </label>
@@ -150,8 +193,12 @@ export function StaffAdmin() {
               />
             </div>
             <div className="md:col-span-2 pt-2">
-              <button type="submit" className="bg-primary text-white px-6 py-2 rounded-lg hover:brightness-110">
-                Сохранить
+              <button
+                type="submit"
+                disabled={uploading}
+                className={`bg-primary text-white px-6 py-2 rounded-lg hover:brightness-110 ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                {uploading ? 'Сохранение...' : 'Сохранить'}
               </button>
             </div>
           </form>
@@ -164,9 +211,18 @@ export function StaffAdmin() {
         <div className="space-y-4">
           {staff.map(member => (
             <div key={member.id} className="bg-surface border border-white/5 rounded-xl p-4 flex justify-between items-center">
-              <div>
-                <h4 className="font-bold text-lg">{member.nickname} <span className="text-sm font-normal text-gray-400 ml-2">({member.category})</span></h4>
-                <div className="text-sm text-primary/80 mt-1">{member.role}</div>
+              <div className="flex items-center gap-3">
+                {member.avatarUrl ? (
+                  <img src={member.avatarUrl} alt={member.nickname} className="w-12 h-12 rounded-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-surface border border-white/10 flex items-center justify-center font-bold text-xl uppercase">
+                    {member.nickname.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <h4 className="font-bold text-lg">{member.nickname} <span className="text-sm font-normal text-gray-400 ml-2">({member.category})</span></h4>
+                  <div className="text-sm text-primary/80 mt-1">{member.role}</div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
