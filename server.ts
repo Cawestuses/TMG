@@ -75,10 +75,13 @@ try {
   console.warn("getFirestore failed:", e);
 }
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+const PUBLIC_DIR = path.join(process.cwd(), "public");
+const UPLOAD_DIR = path.join(PUBLIC_DIR, "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
+
+app.use(express.static(PUBLIC_DIR));
 
 const upload = multer({
   storage: multer.diskStorage({

@@ -1,5 +1,5 @@
 import { GlowCard } from "@/src/components/GlowCard";
-import { Download, Monitor, Smartphone, Wrench, HardDrive, ExternalLink } from "lucide-react";
+import { Download, Monitor, Smartphone, Wrench, HardDrive, ExternalLink, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export function Downloads() {
@@ -65,9 +65,19 @@ export function Downloads() {
   ];
 
   const usefulLinks = [
-    { label: t("downloads.link_switcher"), url: "https://n01.forever-host.xyz/0004" },
+    { label: t("downloads.link_switcher"), url: "https://n01.forever-host.xyz/0004", copyOnly: true },
     { label: t("downloads.link_panel"), url: "https://n01.forever-host.xyz/0004/panel" },
   ];
+
+  const handleCopyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      alert(t("downloads.switcher_copied"));
+    } catch (error) {
+      console.error("Copy failed:", error);
+      alert(t("downloads.switcher_copy_error"));
+    }
+  };
 
   return (
     <div className="space-y-12">
@@ -127,16 +137,31 @@ export function Downloads() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {usefulLinks.map((link, idx) => (
-            <a 
-              key={idx} 
-              href={link.url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-between p-4 rounded-xl bg-surface border border-white/5 hover:border-white/20 transition-all hover:bg-white/5 group"
-            >
-              <span className="font-medium text-gray-200 group-hover:text-white">{link.label}</span>
-              <ExternalLink className="w-5 h-5 text-gray-500 group-hover:text-primary transition-colors" />
-            </a>
+            link.copyOnly ? (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleCopyLink(link.url)}
+                className="flex items-center justify-between p-4 rounded-xl bg-surface border border-white/5 hover:border-white/20 transition-all hover:bg-white/5 group text-left"
+              >
+                <span className="font-medium text-gray-200 group-hover:text-white">{link.label}</span>
+                <span className="flex items-center gap-2 text-sm text-primary opacity-90">
+                  <Copy className="w-4 h-4" />
+                  {t("downloads.copy")}
+                </span>
+              </button>
+            ) : (
+              <a 
+                key={idx} 
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-between p-4 rounded-xl bg-surface border border-white/5 hover:border-white/20 transition-all hover:bg-white/5 group"
+              >
+                <span className="font-medium text-gray-200 group-hover:text-white">{link.label}</span>
+                <ExternalLink className="w-5 h-5 text-gray-500 group-hover:text-primary transition-colors" />
+              </a>
+            )
           ))}
         </div>
 

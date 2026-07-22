@@ -51,6 +51,9 @@ const resources = {
         "useful_resources": "Полезные ресурсы",
         "link_switcher": "GDPS Switcher",
         "link_panel": "Личный кабинет (Музыка / Активация)",
+        "copy": "Скопировать",
+        "switcher_copied": "Ссылка скопирована в буфер обмена.",
+        "switcher_copy_error": "Не удалось скопировать ссылку. Попробуйте вручную.",
         "attention": "Внимание:",
         "attention_text": "Для пользователей старых ОС доступны дополнения: One Core Api (для Windows XP), Second System (для Vista), VxKex (для Windows 7)."
       },
@@ -125,6 +128,9 @@ const resources = {
         "useful_resources": "Useful Resources",
         "link_switcher": "GDPS Switcher",
         "link_panel": "User Panel (Music / Activation)",
+        "copy": "Copy",
+        "switcher_copied": "Link copied to clipboard.",
+        "switcher_copy_error": "Unable to copy the link. Please try manually.",
         "attention": "Attention:",
         "attention_text": "Extensions are available for users of older OS: One Core Api (for Windows XP), Second System (for Vista), VxKex (for Windows 7)."
       },
