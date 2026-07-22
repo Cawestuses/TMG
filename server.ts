@@ -17,14 +17,34 @@ app.use(express.json({ limit: "50mb" }));
 
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-const firebaseCredential = FIREBASE_SERVICE_ACCOUNT_JSON
-  ? cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON))
-  : FIREBASE_SERVICE_ACCOUNT_PATH && fs.existsSync(FIREBASE_SERVICE_ACCOUNT_PATH)
-    ? cert(JSON.parse(fs.readFileSync(FIREBASE_SERVICE_ACCOUNT_PATH, "utf-8")))
-    : applicationDefault();
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_PROJECT_ID;
+
+let firebaseCredential;
+let firebaseProjectId = FIREBASE_PROJECT_ID;
+
+if (FIREBASE_SERVICE_ACCOUNT_JSON) {
+  const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON);
+  firebaseCredential = cert(serviceAccount);
+  firebaseProjectId = serviceAccount.project_id || firebaseProjectId;
+  console.log("Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_JSON");
+} else if (FIREBASE_SERVICE_ACCOUNT_PATH) {
+  if (!fs.existsSync(FIREBASE_SERVICE_ACCOUNT_PATH)) {
+    console.error(`Firebase service account file not found at FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH}`);
+  } else {
+    const serviceAccount = JSON.parse(fs.readFileSync(FIREBASE_SERVICE_ACCOUNT_PATH, "utf-8"));
+    firebaseCredential = cert(serviceAccount);
+    firebaseProjectId = serviceAccount.project_id || firebaseProjectId;
+    console.log(`Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH}`);
+  }
+}
+
+if (!firebaseCredential) {
+  console.log("Firebase service account not provided, using application default credentials");
+  firebaseCredential = applicationDefault();
+}
 
 if (!getApps().length) {
-  initializeApp({ credential: firebaseCredential });
+  initializeApp({ credential: firebaseCredential, projectId: firebaseProjectId });
 }
 
 const db = getFirestore();
