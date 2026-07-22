@@ -8,6 +8,7 @@ import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -98,11 +99,11 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, UPLOAD_DIR),
     filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || "image.png");
-      cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+      cb(null, `${Date.now()}-${safeName}`);
     }
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("Only images are allowed"));
@@ -265,24 +266,51 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   }
 }
 
-// --- Upload API (Теперь загружает напрямую в Firebase Storage) ---
+// --- Upload API (Firebase Storage с фолбэком на локальное хранилище) ---
 app.post("/api/upload", requireAuth, (req, res) => {
-  upload.single("image")(req, res, async (err) => {
+  upload.single("image")(req, res, async (err: any) => {
     if (err) {
       return res.status(400).json({ error: err.message || "Failed to upload image" });
     }
 
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: "No image file provided (field 'image' expected)" });
+    }
+
     try {
-      const file = (req as any).file as Express.Multer.File | undefined;
-      if (!file) {
-        return res.status(400).json({ error: "No image file provided" });
+      // Если доступен Firebase Service Account и Storage Bucket, загружаем в облако
+      if (hasServiceAccount && storageBucketName) {
+        const bucket = getStorage().bucket();
+        const destination = `uploads/${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        
+        await bucket.upload(file.path, {
+          destination,
+          public: true,
+          metadata: {
+            contentType: file.mimetype,
+          },
+        });
+
+        // Удаляем локальный временный файл после загрузки в облако
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
+        return res.json({ url: publicUrl });
       }
 
+      // Фолбэк на локальный диск
       const safeName = path.basename(file.filename);
-      res.json({ url: `/uploads/${safeName}` });
-    } catch (error) {
+      return res.json({ url: `/uploads/${safeName}` });
+    } catch (error: any) {
       console.error("Upload failed:", error);
-      res.status(500).json({ error: "Failed to upload image" });
+      // Очистка при ошибке
+      if (file?.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      return res.status(500).json({ error: error.message || "Failed to process uploaded file" });
     }
   });
 });
@@ -498,8 +526,8 @@ async function fetchGDPSMusicCount(): Promise<number | null> {
       return null;
     }
 
-    const browser = await getBrowser();
-    page = await browser.newPage();
+    const browserInstance = await getBrowser();
+    page = await browserInstance.newPage();
 
     console.log("Navigating to Forever Host panel...");
     await page.goto("https://n01.forever-host.xyz/0004/panel/music/list", {
