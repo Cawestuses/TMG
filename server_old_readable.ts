@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import NodeCache from "node-cache";
@@ -8,6 +8,7 @@ import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -80,8 +81,11 @@ if (!getApps().length) {
 }
 
 let db: any = null;
+let storageBucket: any = null;
 try {
   db = getFirestore();
+  const storage = getStorage();
+  storageBucket = storage.bucket();
 } catch (e) {
   console.warn("Firebase initialization failed:", e);
 }
@@ -92,16 +96,9 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-app.use("/uploads", express.static(UPLOAD_DIR));
-
+// ╨Ш╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╡╨╝ memoryStorage ╨┤╨╗╤П ╨╝╨│╨╜╨╛╨▓╨╡╨╜╨╜╨╛╨╣ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨▓ Firebase Storage
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || "image.png");
-      cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -252,7 +249,7 @@ app.post("/api/admin/login", (req, res) => {
   if (username === adminUser && password === adminPass) {
     res.json({ success: true, token: "admin-session-token-123" });
   } else {
-    res.status(401).json({ error: "Неверный логин или пароль" });
+    res.status(401).json({ error: "╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ ╨╗╨╛╨│╨╕╨╜ ╨╕╨╗╨╕ ╨┐╨░╤А╨╛╨╗╤М" });
   }
 });
 
@@ -265,7 +262,7 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   }
 }
 
-// --- Upload API (Теперь загружает напрямую в Firebase Storage) ---
+// --- Upload API (╨в╨╡╨┐╨╡╤А╤М ╨╖╨░╨│╤А╤Г╨╢╨░╨╡╤В ╨╜╨░╨┐╤А╤П╨╝╤Г╤О ╨▓ Firebase Storage) ---
 app.post("/api/upload", requireAuth, (req, res) => {
   upload.single("image")(req, res, async (err) => {
     if (err) {
@@ -278,13 +275,62 @@ app.post("/api/upload", requireAuth, (req, res) => {
         return res.status(400).json({ error: "No image file provided" });
       }
 
-      const safeName = path.basename(file.filename);
+      const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const destinationPath = `uploads/${safeName}`;
+
+      // ╨Х╤Б╨╗╨╕ ╨┐╨╛╨┤╨║╨╗╤О╤З╨╡╨╜ Firebase Storage тАФ ╤Б╨╛╤Е╤А╨░╨╜╤П╨╡╨╝ ╤В╤Г╨┤╨░
+      if (storageBucket) {
+        const fileRef = storageBucket.file(destinationPath);
+        await fileRef.save(file.buffer, {
+          resumable: false,
+          contentType: file.mimetype,
+          metadata: {
+            cacheControl: "public, max-age=31536000, immutable",
+          },
+        });
+        console.log(`Uploaded ${safeName} to Firebase Storage`);
+      }
+
+      // ╨б╨╛╤Е╤А╨░╨╜╤П╨╡╨╝ ╨║╨╛╨┐╨╕╤О ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛ (╨┤╨╗╤П ╨▒╤Л╤Б╤В╤А╨╛╨╣ ╨╛╤В╨┤╨░╤З╨╕ ╨┤╨╛ ╨┐╨╡╤А╨▓╨╛╨│╨╛ ╤А╨╡╤Б╤В╨░╤А╤В╨░)
+      const localFilePath = path.join(UPLOAD_DIR, safeName);
+      fs.writeFileSync(localFilePath, file.buffer);
+
+      // ╨Т╨╛╨╖╨▓╤А╨░╤Й╨░╨╡╨╝ ╨┐╤А╨╕╨▓╤Л╤З╨╜╤Л╨╣ ╨░╨┤╤А╨╡╤Б ╨▓╨╕╨┤╨░ /uploads/filename.png
       res.json({ url: `/uploads/${safeName}` });
     } catch (error) {
       console.error("Upload failed:", error);
       res.status(500).json({ error: "Failed to upload image" });
     }
   });
+});
+
+// --- ╨а╨╛╤Г╤В ╨╛╤В╨│╤А╤Г╨╖╨║╨╕ ╨╖╨░╨│╤А╤Г╨╢╨╡╨╜╨╜╤Л╤Е ╨║╨░╤А╤В╨╕╨╜╨╛╨║ (`/uploads/:filename`) ---
+app.get("/uploads/:filename", async (req, res) => {
+  const { filename } = req.params;
+  const localPath = path.join(UPLOAD_DIR, filename);
+
+  // 1. ╨Я╤А╨╛╨▓╨╡╤А╤П╨╡╨╝ ╨╜╨░╨╗╨╕╤З╨╕╨╡ ╤Д╨░╨╣╨╗╨░ ╨╜╨░ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╝ ╨┤╨╕╤Б╨║╨╡
+  if (fs.existsSync(localPath)) {
+    return res.sendFile(localPath);
+  }
+
+  // 2. ╨Х╤Б╨╗╨╕ ╨┤╨╕╤Б╨║ ╨╛╤З╨╕╤Б╤В╨╕╨╗╤Б╤П (╨┐╨╛╤Б╨╗╨╡ ╤А╨╡╨┤╨╡╨┐╨╗╨╛╤П ╨╜╨░ Render) тАФ ╨╖╨░╨▒╨╕╤А╨░╨╡╨╝ ╨╕╨╖ Firebase Storage
+  if (storageBucket) {
+    try {
+      const file = storageBucket.file(`uploads/${filename}`);
+      const [exists] = await file.exists();
+      if (exists) {
+        const ext = path.extname(filename).toLowerCase();
+        const contentType = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+        res.setHeader("Content-Type", contentType);
+        return file.createReadStream().pipe(res);
+      }
+    } catch (err) {
+      console.warn(`Failed to stream /uploads/${filename} from Storage:`, err);
+    }
+  }
+
+  res.status(404).send("File not found");
 });
 
 // --- News API ---
@@ -566,7 +612,7 @@ app.get("/api/gdps/music/count", async (req, res) => {
   }
 });
 
-// Статические файлы приложения
+// ╨б╤В╨░╤В╨╕╤З╨╡╤Б╨║╨╕╨╡ ╤Д╨░╨╣╨╗╤Л ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╤П
 app.use(express.static(PUBLIC_DIR));
 
 async function startServer() {
