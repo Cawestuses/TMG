@@ -165,7 +165,6 @@ async function fetchCollectionData(collectionName: "news" | "staff" | "faq", ord
       if (valA > valB) return orderDirection === "asc" ? 1 : -1;
       return 0;
     });
-  }
 
   return items;
 }
@@ -583,8 +582,10 @@ app.get("/api/gdps/music/count", async (req, res) => {
   }
 });
 
+app.use("/uploads", express.static(UPLOAD_DIR));
+app.use(express.static(PUBLIC_DIR));
+
 async function startServer() {
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -594,25 +595,19 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
+
+    // 2. Исправленный SPA-роут: отдает index.html ТОЛЬКО для страниц, но не для отсутствующих файлов
     app.get("*", (req, res) => {
+      // Если запрос содержит точку (например /logo.png или /uploads/123.jpg) — отдаем честный 404
+      if (req.path.includes(".")) {
+        return res.status(404).send("File not found");
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   const server = app.listen(PORT, "0.0.0.0", () => {
-    const addr = server.address();
-    const actualPort = typeof addr === "object" && addr !== null && "port" in addr ? addr.port : PORT;
-    console.log(`Server running on port ${actualPort}`);
-  });
-
-  // Graceful shutdown
-  process.on("SIGINT", async () => {
-    console.log("Shutting down server...");
-    await closeBrowser();
-    server.close(() => {
-      console.log("Server closed");
-      process.exit(0);
-    });
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
