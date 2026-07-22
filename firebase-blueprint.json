@@ -1,25 +1,58 @@
 {
-  "collections": [
-    {
-      "name": "gdps_news",
-      "schema": {
-        "title": "string",
-        "content": "string",
-        "date": "string",
-        "author": "string"
+  "entities": {
+    "News": {
+      "title": "News Post",
+      "description": "A news article or update on TMGDPS",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "author": { "type": "string" }
       },
-      "rules": "allow read: if true; allow write: if request.auth != null;"
+      "required": ["id", "title", "content", "date", "author"]
     },
-    {
-      "name": "gdps_staff",
-      "schema": {
-        "nickname": "string",
-        "role": "string",
-        "category": "string",
-        "order": "number",
-        "socialLink": "string"
+    "Staff": {
+      "title": "Staff Member",
+      "description": "A staff or team member of TMGDPS",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nickname": { "type": "string" },
+        "role": { "type": "string" },
+        "category": { "type": "string" },
+        "order": { "type": "number" },
+        "socialLink": { "type": "string" },
+        "avatarUrl": { "type": "string" }
       },
-      "rules": "allow read: if true; allow write: if request.auth != null;"
+      "required": ["id", "nickname", "role", "category", "order"]
+    },
+    "FAQ": {
+      "title": "FAQ Item",
+      "description": "Frequently asked question and answer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["id", "question", "answer", "order"]
     }
-  ]
+  },
+  "firestore": {
+    "/news/{newsId}": {
+      "schema": { "$ref": "#/entities/News" },
+      "description": "News articles collection"
+    },
+    "/staff/{staffId}": {
+      "schema": { "$ref": "#/entities/Staff" },
+      "description": "Staff members collection"
+    },
+    "/faq/{faqId}": {
+      "schema": { "$ref": "#/entities/FAQ" },
+      "description": "Frequently asked questions collection"
+    }
+  }
 }

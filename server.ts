@@ -21,33 +21,64 @@ const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGL
 
 let firebaseCredential;
 let firebaseProjectId = FIREBASE_PROJECT_ID;
+let hasServiceAccount = false;
 
 if (FIREBASE_SERVICE_ACCOUNT_JSON) {
-  const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON);
-  firebaseCredential = cert(serviceAccount);
-  firebaseProjectId = serviceAccount.project_id || firebaseProjectId;
-  console.log("Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_JSON");
-} else if (FIREBASE_SERVICE_ACCOUNT_PATH) {
-  if (!fs.existsSync(FIREBASE_SERVICE_ACCOUNT_PATH)) {
-    console.error(`Firebase service account file not found at FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH}`);
-  } else {
-    const serviceAccount = JSON.parse(fs.readFileSync(FIREBASE_SERVICE_ACCOUNT_PATH, "utf-8"));
+  try {
+    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON);
     firebaseCredential = cert(serviceAccount);
     firebaseProjectId = serviceAccount.project_id || firebaseProjectId;
-    console.log(`Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH}`);
+    hasServiceAccount = true;
+    console.log("Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_JSON");
+  } catch (e) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
+  }
+} else if (FIREBASE_SERVICE_ACCOUNT_PATH) {
+  if (fs.existsSync(FIREBASE_SERVICE_ACCOUNT_PATH)) {
+    try {
+      const serviceAccount = JSON.parse(fs.readFileSync(FIREBASE_SERVICE_ACCOUNT_PATH, "utf-8"));
+      firebaseCredential = cert(serviceAccount);
+      firebaseProjectId = serviceAccount.project_id || firebaseProjectId;
+      hasServiceAccount = true;
+      console.log(`Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH}`);
+    } catch (e) {
+      console.error(`Failed to load service account at ${FIREBASE_SERVICE_ACCOUNT_PATH}:`, e);
+    }
+  } else {
+    console.warn(`Firebase service account file not found at FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH}`);
   }
 }
 
-if (!firebaseCredential) {
-  console.log("Firebase service account not provided, using application default credentials");
-  firebaseCredential = applicationDefault();
-}
-
 if (!getApps().length) {
-  initializeApp({ credential: firebaseCredential, projectId: firebaseProjectId });
+  if (hasServiceAccount && firebaseCredential) {
+    initializeApp({ credential: firebaseCredential, projectId: firebaseProjectId });
+  } else {
+    let configProjectId = "tmg-site-3be52";
+    if (fs.existsSync("./firebase-applet-config.json")) {
+      try {
+        const conf = JSON.parse(fs.readFileSync("./firebase-applet-config.json", "utf-8"));
+        if (conf.projectId) configProjectId = conf.projectId;
+      } catch (err) {}
+    }
+    try {
+      initializeApp({ credential: applicationDefault(), projectId: firebaseProjectId || configProjectId });
+    } catch (err) {
+      console.warn("Initializing default firebase app failed:", err);
+    }
+  }
 }
 
-const db = getFirestore();
+let db: any = null;
+try {
+  db = getFirestore();
+} catch (e) {
+  console.warn("getFirestore failed:", e);
+}
+
+const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -64,38 +95,140 @@ const upload = multer({
   }
 });
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-
 app.use("/uploads", express.static(UPLOAD_DIR));
 
 const DB_FILE = path.join(process.cwd(), "data.json");
-if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(
-    DB_FILE,
-    JSON.stringify({ songs: 0 }, null, 2)
-  );
-}
 
 function readDB() {
-  const db = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
-  if (typeof db.songs !== "number") db.songs = 0;
-  return db;
+  try {
+    if (!fs.existsSync(DB_FILE)) {
+      const initial = { songs: 142, news: [], staff: [], faq: [] };
+      fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
+      return initial;
+    }
+    const content = fs.readFileSync(DB_FILE, "utf-8");
+    const data = JSON.parse(content);
+    if (typeof data.songs !== "number") data.songs = 142;
+    if (!Array.isArray(data.news)) data.news = [];
+    if (!Array.isArray(data.staff)) data.staff = [];
+    if (!Array.isArray(data.faq)) data.faq = [];
+    return data;
+  } catch (err) {
+    console.error("Error reading DB_FILE:", err);
+    return { songs: 142, news: [], staff: [], faq: [] };
+  }
+}
+
+function writeDB(data: any) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error("Error writing DB_FILE:", err);
+  }
 }
 
 function getSongCountFromDB() {
-  const db = readDB();
-  return typeof db.songs === "number" ? db.songs : 0;
+  const dbData = readDB();
+  return typeof dbData.songs === "number" ? dbData.songs : 142;
 }
 
-async function fetchCollectionData(collectionName: string, orderByField?: string, orderDirection: "asc" | "desc" = "asc") {
-  const collectionRef = db.collection(collectionName);
-  const snapshot = orderByField
-    ? await collectionRef.orderBy(orderByField, orderDirection).get()
-    : await collectionRef.get();
-  return snapshot.docs.map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() }));
+async function fetchCollectionData(collectionName: "news" | "staff" | "faq", orderByField?: string, orderDirection: "asc" | "desc" = "asc") {
+  const localData = readDB();
+  let items: any[] = localData[collectionName] || [];
+
+  if (db && hasServiceAccount) {
+    try {
+      const collectionRef = db.collection(collectionName);
+      const snapshot = orderByField
+        ? await collectionRef.orderBy(orderByField, orderDirection).get()
+        : await collectionRef.get();
+      const firestoreItems = snapshot.docs.map((docSnapshot: any) => ({ id: docSnapshot.id, ...docSnapshot.data() }));
+      
+      if (firestoreItems.length > 0) {
+        items = firestoreItems;
+        localData[collectionName] = firestoreItems;
+        writeDB(localData);
+      }
+    } catch (error: any) {
+      console.warn(`Firestore query for '${collectionName}' failed (${error.message || error}). Using local cache.`);
+    }
+  }
+
+  if (orderByField && items.length > 0) {
+    items = [...items].sort((a: any, b: any) => {
+      const valA = a[orderByField];
+      const valB = b[orderByField];
+      if (valA < valB) return orderDirection === "asc" ? -1 : 1;
+      if (valA > valB) return orderDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }
+
+  return items;
+}
+
+async function saveDocToCollection(collectionName: "news" | "staff" | "faq", docData: any) {
+  const localData = readDB();
+  const list = localData[collectionName] || [];
+  const idx = list.findIndex((item: any) => item.id === docData.id);
+  if (idx >= 0) {
+    list[idx] = { ...list[idx], ...docData };
+  } else {
+    list.push(docData);
+  }
+  localData[collectionName] = list;
+  writeDB(localData);
+
+  if (db && hasServiceAccount) {
+    try {
+      await db.collection(collectionName).doc(docData.id).set(docData, { merge: true });
+    } catch (err: any) {
+      console.warn(`Firestore setDoc for '${collectionName}/${docData.id}' skipped (${err.message || err}). Saved locally.`);
+    }
+  }
+
+  return docData;
+}
+
+async function updateDocInCollection(collectionName: "news" | "staff" | "faq", id: string, docData: any) {
+  const localData = readDB();
+  const list = localData[collectionName] || [];
+  const idx = list.findIndex((item: any) => item.id === id);
+  if (idx < 0) {
+    throw new Error("Not found");
+  }
+  const updated = { ...list[idx], ...docData, id };
+  list[idx] = updated;
+  localData[collectionName] = list;
+  writeDB(localData);
+
+  if (db && hasServiceAccount) {
+    try {
+      await db.collection(collectionName).doc(id).update(docData);
+    } catch (err: any) {
+      console.warn(`Firestore update for '${collectionName}/${id}' skipped (${err.message || err}). Updated locally.`);
+    }
+  }
+
+  return updated;
+}
+
+async function deleteDocFromCollection(collectionName: "news" | "staff" | "faq", id: string) {
+  const localData = readDB();
+  let list = localData[collectionName] || [];
+  list = list.filter((item: any) => item.id !== id);
+  localData[collectionName] = list;
+  writeDB(localData);
+
+  if (db && hasServiceAccount) {
+    try {
+      await db.collection(collectionName).doc(id).delete();
+    } catch (err: any) {
+      console.warn(`Firestore delete for '${collectionName}/${id}' skipped (${err.message || err}). Deleted locally.`);
+    }
+  }
+
+  return true;
 }
 
 // --- Admin Auth API ---
@@ -149,44 +282,39 @@ app.get("/api/news", async (req, res) => {
     const newsItems = await fetchCollectionData("news", "date", "desc");
     res.json(newsItems);
   } catch (error) {
-    console.error("Failed to fetch news from Firestore:", error);
-    res.status(500).json({ error: "Failed to fetch news" });
+    console.error("Failed to fetch news:", error);
+    res.json([]);
   }
 });
 
 app.post("/api/news", requireAuth, async (req, res) => {
   try {
     const newPost = { id: Date.now().toString(), ...req.body };
-    await db.collection("news").doc(newPost.id).set(newPost);
-    res.json(newPost);
+    const saved = await saveDocToCollection("news", newPost);
+    res.json(saved);
   } catch (error) {
-    console.error("Failed to save news to Firestore:", error);
+    console.error("Failed to save news:", error);
     res.status(500).json({ error: "Failed to save news" });
   }
 });
 
 app.put("/api/news/:id", requireAuth, async (req, res) => {
   try {
-    const docRef = db.collection("news").doc(req.params.id);
-    const existing = await docRef.get();
-    if (!existing.exists) {
-      return res.status(404).json({ error: "Not found" });
-    }
-    await docRef.update(req.body);
-    const updatedDoc = await docRef.get();
-    res.json({ id: updatedDoc.id, ...updatedDoc.data() });
-  } catch (error) {
-    console.error("Failed to update news in Firestore:", error);
+    const updated = await updateDocInCollection("news", req.params.id, req.body);
+    res.json(updated);
+  } catch (error: any) {
+    if (error?.message === "Not found") return res.status(404).json({ error: "Not found" });
+    console.error("Failed to update news:", error);
     res.status(500).json({ error: "Failed to update news" });
   }
 });
 
 app.delete("/api/news/:id", requireAuth, async (req, res) => {
   try {
-    await db.collection("news").doc(req.params.id).delete();
+    await deleteDocFromCollection("news", req.params.id);
     res.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete news from Firestore:", error);
+    console.error("Failed to delete news:", error);
     res.status(500).json({ error: "Failed to delete news" });
   }
 });
@@ -197,44 +325,39 @@ app.get("/api/staff", async (req, res) => {
     const staffItems = await fetchCollectionData("staff", "order", "asc");
     res.json(staffItems);
   } catch (error) {
-    console.error("Failed to fetch staff from Firestore:", error);
-    res.status(500).json({ error: "Failed to fetch staff" });
+    console.error("Failed to fetch staff:", error);
+    res.json([]);
   }
 });
 
 app.post("/api/staff", requireAuth, async (req, res) => {
   try {
     const newStaff = { id: Date.now().toString(), ...req.body };
-    await db.collection("staff").doc(newStaff.id).set(newStaff);
-    res.json(newStaff);
+    const saved = await saveDocToCollection("staff", newStaff);
+    res.json(saved);
   } catch (error) {
-    console.error("Failed to save staff to Firestore:", error);
+    console.error("Failed to save staff:", error);
     res.status(500).json({ error: "Failed to save staff" });
   }
 });
 
 app.put("/api/staff/:id", requireAuth, async (req, res) => {
   try {
-    const docRef = db.collection("staff").doc(req.params.id);
-    const existing = await docRef.get();
-    if (!existing.exists) {
-      return res.status(404).json({ error: "Not found" });
-    }
-    await docRef.update(req.body);
-    const updatedDoc = await docRef.get();
-    res.json({ id: updatedDoc.id, ...updatedDoc.data() });
-  } catch (error) {
-    console.error("Failed to update staff in Firestore:", error);
+    const updated = await updateDocInCollection("staff", req.params.id, req.body);
+    res.json(updated);
+  } catch (error: any) {
+    if (error?.message === "Not found") return res.status(404).json({ error: "Not found" });
+    console.error("Failed to update staff:", error);
     res.status(500).json({ error: "Failed to update staff" });
   }
 });
 
 app.delete("/api/staff/:id", requireAuth, async (req, res) => {
   try {
-    await db.collection("staff").doc(req.params.id).delete();
+    await deleteDocFromCollection("staff", req.params.id);
     res.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete staff from Firestore:", error);
+    console.error("Failed to delete staff:", error);
     res.status(500).json({ error: "Failed to delete staff" });
   }
 });
@@ -245,44 +368,39 @@ app.get("/api/faq", async (req, res) => {
     const faqItems = await fetchCollectionData("faq", "order", "asc");
     res.json(faqItems);
   } catch (error) {
-    console.error("Failed to fetch FAQ from Firestore:", error);
-    res.status(500).json({ error: "Failed to fetch FAQ" });
+    console.error("Failed to fetch FAQ:", error);
+    res.json([]);
   }
 });
 
 app.post("/api/faq", requireAuth, async (req, res) => {
   try {
     const newFaq = { id: Date.now().toString(), ...req.body };
-    await db.collection("faq").doc(newFaq.id).set(newFaq);
-    res.json(newFaq);
+    const saved = await saveDocToCollection("faq", newFaq);
+    res.json(saved);
   } catch (error) {
-    console.error("Failed to save FAQ to Firestore:", error);
+    console.error("Failed to save FAQ:", error);
     res.status(500).json({ error: "Failed to save FAQ" });
   }
 });
 
 app.put("/api/faq/:id", requireAuth, async (req, res) => {
   try {
-    const docRef = db.collection("faq").doc(req.params.id);
-    const existing = await docRef.get();
-    if (!existing.exists) {
-      return res.status(404).json({ error: "Not found" });
-    }
-    await docRef.update(req.body);
-    const updatedDoc = await docRef.get();
-    res.json({ id: updatedDoc.id, ...updatedDoc.data() });
-  } catch (error) {
-    console.error("Failed to update FAQ in Firestore:", error);
+    const updated = await updateDocInCollection("faq", req.params.id, req.body);
+    res.json(updated);
+  } catch (error: any) {
+    if (error?.message === "Not found") return res.status(404).json({ error: "Not found" });
+    console.error("Failed to update FAQ:", error);
     res.status(500).json({ error: "Failed to update FAQ" });
   }
 });
 
 app.delete("/api/faq/:id", requireAuth, async (req, res) => {
   try {
-    await db.collection("faq").doc(req.params.id).delete();
+    await deleteDocFromCollection("faq", req.params.id);
     res.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete FAQ from Firestore:", error);
+    console.error("Failed to delete FAQ:", error);
     res.status(500).json({ error: "Failed to delete FAQ" });
   }
 });

@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Public read for news, write for authenticated admin
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Public read for staff, write for authenticated admin
+    match /staff/{staffId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Public read for faq, write for authenticated admin
+    match /faq/{faqId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
