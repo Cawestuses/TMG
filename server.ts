@@ -165,9 +165,10 @@ async function fetchCollectionData(collectionName: "news" | "staff" | "faq", ord
       if (valA > valB) return orderDirection === "asc" ? 1 : -1;
       return 0;
     });
+  } // Закрываем блок сортировки
 
-  return items;
-}
+  return items; // Возвращаем массив в любом случае
+} // Закрываем функцию
 
 async function saveDocToCollection(collectionName: "news" | "staff" | "faq", docData: any) {
   const localData = readDB();
@@ -581,9 +582,6 @@ app.get("/api/gdps/music/count", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
-app.use("/uploads", express.static(UPLOAD_DIR));
-app.use(express.static(PUBLIC_DIR));
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
