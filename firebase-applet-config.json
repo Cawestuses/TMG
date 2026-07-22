@@ -1,10 +1,9 @@
 {
-  "projectId": "excellent-shape-307pf",
-  "appId": "1:576850039935:web:8cda9d5dd42f11a1935b4a",
-  "apiKey": "AIzaSyAh9oD9otcM2oBaoqHDd88aPMUElaOO0Z4",
-  "authDomain": "excellent-shape-307pf.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-cc76a5e5-6a8b-4bcc-b035-a8cb4b3689a4",
-  "storageBucket": "excellent-shape-307pf.firebasestorage.app",
-  "messagingSenderId": "576850039935",
-  "measurementId": ""
+  "apiKey": "AIzaSyDrX2kA_LQsVkGw6Inol89ah4LaM2Y0MGs",
+  "authDomain": "tmg-site-3be52.firebaseapp.com",
+  "projectId": "tmg-site-3be52",
+  "storageBucket": "tmg-site-3be52.firebasestorage.app",
+  "messagingSenderId": "629515840819",
+  "appId": "1:629515840819:web:1ac506140215f80f0a2246",
+  "measurementId": "G-5ETE7WDJYL"
 }
