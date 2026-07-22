@@ -8,6 +8,7 @@ import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -69,10 +70,15 @@ if (!getApps().length) {
 }
 
 let db: any = null;
+let storage: any = null;
+let storageBucket: any = null;
+let storageBucketName = process.env.FIREBASE_STORAGE_BUCKET || `${firebaseProjectId}.appspot.com`;
 try {
   db = getFirestore();
+  storage = getStorage();
+  storageBucket = storageBucketName ? storage.bucket(storageBucketName) : storage.bucket();
 } catch (e) {
-  console.warn("getFirestore failed:", e);
+  console.warn("Firebase initialization failed:", e);
 }
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
@@ -101,6 +107,111 @@ const upload = multer({
 app.use("/uploads", express.static(UPLOAD_DIR));
 
 const DB_FILE = path.join(process.cwd(), "data.json");
+
+const ASSET_MAP: Record<string, string> = {
+  "logo.png": "assets/logo.png",
+  "list-preview.png": "assets/list-preview.png",
+};
+
+function getAssetContentType(fileName: string) {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".webp") return "image/webp";
+  return "application/octet-stream";
+}
+
+async function saveAssetMetadata(assetName: string, destinationPath: string, contentType: string) {
+  if (!db) return;
+  try {
+    await db.collection("assets").doc(assetName).set({
+      path: destinationPath,
+      contentType,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  } catch (error) {
+    console.warn(`Unable to save metadata for asset ${assetName}:`, error);
+  }
+}
+
+async function ensureStorageAsset(bucket: any, localFilePath: string, destinationPath: string, assetName: string) {
+  if (!bucket || !fs.existsSync(localFilePath)) return;
+
+  try {
+    const file = bucket.file(destinationPath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      const content = fs.readFileSync(localFilePath);
+      await file.save(content, {
+        resumable: false,
+        contentType: getAssetContentType(localFilePath),
+        metadata: {
+          cacheControl: "public, max-age=31536000, immutable",
+        },
+      });
+      console.log(`Uploaded asset to Firebase Storage: ${destinationPath}`);
+    }
+    await saveAssetMetadata(assetName, destinationPath, getAssetContentType(localFilePath));
+  } catch (error) {
+    console.warn(`Unable to upload or save metadata for asset ${assetName}:`, error);
+  }
+}
+
+async function initStorageAssets() {
+  if (!storageBucket) return;
+  await ensureStorageAsset(storageBucket, path.join(PUBLIC_DIR, "logo.png"), ASSET_MAP["logo.png"], "logo.png");
+  await ensureStorageAsset(storageBucket, path.join(PUBLIC_DIR, "list-preview.png"), ASSET_MAP["list-preview.png"], "list-preview.png");
+}
+
+app.get("/api/assets/:assetName", async (req, res) => {
+  const { assetName } = req.params;
+  const assetPath = ASSET_MAP[assetName];
+  if (!assetPath) {
+    return res.status(404).json({ error: "Asset not found" });
+  }
+
+  let storagePath = assetPath;
+  if (db) {
+    try {
+      const metadataDoc = await db.collection("assets").doc(assetName).get();
+      if (metadataDoc.exists) {
+        const data = metadataDoc.data();
+        if (data?.path) {
+          storagePath = data.path;
+        }
+      }
+    } catch (err) {
+      console.warn(`Unable to load metadata for asset ${assetName}:`, err);
+    }
+  }
+
+  if (storageBucket) {
+    try {
+      const file = storageBucket.file(storagePath);
+      const [exists] = await file.exists();
+      if (!exists) {
+        throw new Error("Storage asset not found");
+      }
+      res.setHeader("Content-Type", getAssetContentType(assetName));
+      const stream = file.createReadStream();
+      stream.on("error", (error: any) => {
+        console.error(`Error streaming asset ${assetName} from Storage:`, error);
+        res.status(502).end();
+      });
+      return stream.pipe(res);
+    } catch (error) {
+      console.warn(`Unable to serve asset ${assetName} from Storage:`, error);
+    }
+  }
+
+  const localPath = path.join(PUBLIC_DIR, assetName);
+  if (fs.existsSync(localPath)) {
+    res.type(getAssetContentType(assetName));
+    return res.sendFile(localPath);
+  }
+
+  res.status(404).json({ error: "Asset not available" });
+});
 
 function readDB() {
   try {
@@ -603,6 +714,8 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  await initStorageAssets();
 
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);

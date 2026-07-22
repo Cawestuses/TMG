@@ -93,7 +93,7 @@ export function Home() {
 
             <div className="shrink-0 relative w-full lg:w-1/2 xl:w-5/12 hidden md:block">
               <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl z-10 group">
-                <img src="/list-preview.png" alt="TMG List Preview" className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105" />
+                <img src="/api/assets/list-preview.png" alt="TMG List Preview" className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <div className="absolute inset-0 bg-primary/20 blur-[50px] -z-10 rounded-full" />
