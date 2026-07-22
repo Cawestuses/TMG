@@ -50,9 +50,16 @@ if (FIREBASE_SERVICE_ACCOUNT_JSON) {
   }
 }
 
+// BUCKET CONFIGURATION (.firebasestorage.app or .appspot.com)
+const storageBucketName = process.env.FIREBASE_STORAGE_BUCKET || (firebaseProjectId ? `${firebaseProjectId}.firebasestorage.app` : undefined);
+
 if (!getApps().length) {
   if (hasServiceAccount && firebaseCredential) {
-    initializeApp({ credential: firebaseCredential, projectId: firebaseProjectId });
+    initializeApp({
+      credential: firebaseCredential,
+      projectId: firebaseProjectId,
+      storageBucket: storageBucketName,
+    });
   } else {
     let configProjectId = "tmg-site-3be52";
     if (fs.existsSync("./firebase-applet-config.json")) {
@@ -62,7 +69,11 @@ if (!getApps().length) {
       } catch (err) {}
     }
     try {
-      initializeApp({ credential: applicationDefault(), projectId: firebaseProjectId || configProjectId });
+      initializeApp({
+        credential: applicationDefault(),
+        projectId: firebaseProjectId || configProjectId,
+        storageBucket: storageBucketName,
+      });
     } catch (err) {
       console.warn("Initializing default firebase app failed:", err);
     }
@@ -70,13 +81,11 @@ if (!getApps().length) {
 }
 
 let db: any = null;
-let storage: any = null;
 let storageBucket: any = null;
-let storageBucketName = process.env.FIREBASE_STORAGE_BUCKET || `${firebaseProjectId}.appspot.com`;
 try {
   db = getFirestore();
-  storage = getStorage();
-  storageBucket = storageBucketName ? storage.bucket(storageBucketName) : storage.bucket();
+  const storage = getStorage();
+  storageBucket = storage.bucket();
 } catch (e) {
   console.warn("Firebase initialization failed:", e);
 }
@@ -87,16 +96,9 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-app.use(express.static(PUBLIC_DIR));
-
+// Используем memoryStorage для мгновенной загрузки в Firebase Storage
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || "image.png");
-      cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -104,114 +106,7 @@ const upload = multer({
   }
 });
 
-app.use("/uploads", express.static(UPLOAD_DIR));
-
 const DB_FILE = path.join(process.cwd(), "data.json");
-
-const ASSET_MAP: Record<string, string> = {
-  "logo.png": "assets/logo.png",
-  "list-preview.png": "assets/list-preview.png",
-};
-
-function getAssetContentType(fileName: string) {
-  const ext = path.extname(fileName).toLowerCase();
-  if (ext === ".png") return "image/png";
-  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
-  if (ext === ".webp") return "image/webp";
-  return "application/octet-stream";
-}
-
-async function saveAssetMetadata(assetName: string, destinationPath: string, contentType: string) {
-  if (!db) return;
-  try {
-    await db.collection("assets").doc(assetName).set({
-      path: destinationPath,
-      contentType,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-  } catch (error) {
-    console.warn(`Unable to save metadata for asset ${assetName}:`, error);
-  }
-}
-
-async function ensureStorageAsset(bucket: any, localFilePath: string, destinationPath: string, assetName: string) {
-  if (!bucket || !fs.existsSync(localFilePath)) return;
-
-  try {
-    const file = bucket.file(destinationPath);
-    const [exists] = await file.exists();
-    if (!exists) {
-      const content = fs.readFileSync(localFilePath);
-      await file.save(content, {
-        resumable: false,
-        contentType: getAssetContentType(localFilePath),
-        metadata: {
-          cacheControl: "public, max-age=31536000, immutable",
-        },
-      });
-      console.log(`Uploaded asset to Firebase Storage: ${destinationPath}`);
-    }
-    await saveAssetMetadata(assetName, destinationPath, getAssetContentType(localFilePath));
-  } catch (error) {
-    console.warn(`Unable to upload or save metadata for asset ${assetName}:`, error);
-  }
-}
-
-async function initStorageAssets() {
-  if (!storageBucket) return;
-  await ensureStorageAsset(storageBucket, path.join(PUBLIC_DIR, "logo.png"), ASSET_MAP["logo.png"], "logo.png");
-  await ensureStorageAsset(storageBucket, path.join(PUBLIC_DIR, "list-preview.png"), ASSET_MAP["list-preview.png"], "list-preview.png");
-}
-
-app.get("/api/assets/:assetName", async (req, res) => {
-  const { assetName } = req.params;
-  const assetPath = ASSET_MAP[assetName];
-  if (!assetPath) {
-    return res.status(404).json({ error: "Asset not found" });
-  }
-
-  let storagePath = assetPath;
-  if (db) {
-    try {
-      const metadataDoc = await db.collection("assets").doc(assetName).get();
-      if (metadataDoc.exists) {
-        const data = metadataDoc.data();
-        if (data?.path) {
-          storagePath = data.path;
-        }
-      }
-    } catch (err) {
-      console.warn(`Unable to load metadata for asset ${assetName}:`, err);
-    }
-  }
-
-  if (storageBucket) {
-    try {
-      const file = storageBucket.file(storagePath);
-      const [exists] = await file.exists();
-      if (!exists) {
-        throw new Error("Storage asset not found");
-      }
-      res.setHeader("Content-Type", getAssetContentType(assetName));
-      const stream = file.createReadStream();
-      stream.on("error", (error: any) => {
-        console.error(`Error streaming asset ${assetName} from Storage:`, error);
-        res.status(502).end();
-      });
-      return stream.pipe(res);
-    } catch (error) {
-      console.warn(`Unable to serve asset ${assetName} from Storage:`, error);
-    }
-  }
-
-  const localPath = path.join(PUBLIC_DIR, assetName);
-  if (fs.existsSync(localPath)) {
-    res.type(getAssetContentType(assetName));
-    return res.sendFile(localPath);
-  }
-
-  res.status(404).json({ error: "Asset not available" });
-});
 
 function readDB() {
   try {
@@ -276,10 +171,10 @@ async function fetchCollectionData(collectionName: "news" | "staff" | "faq", ord
       if (valA > valB) return orderDirection === "asc" ? 1 : -1;
       return 0;
     });
-  } // Закрываем блок сортировки
+  }
 
-  return items; // Возвращаем массив в любом случае
-} // Закрываем функцию
+  return items;
+}
 
 async function saveDocToCollection(collectionName: "news" | "staff" | "faq", docData: any) {
   const localData = readDB();
@@ -352,14 +247,12 @@ app.post("/api/admin/login", (req, res) => {
   const adminPass = process.env.ADMIN_PASSWORD || "admin";
 
   if (username === adminUser && password === adminPass) {
-    // Return a simple mock token
     res.json({ success: true, token: "admin-session-token-123" });
   } else {
     res.status(401).json({ error: "Неверный логин или пароль" });
   }
 });
 
-// Auth middleware for protected routes
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = req.headers.authorization;
   if (token === "Bearer admin-session-token-123") {
@@ -369,8 +262,9 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   }
 }
 
-app.post("/api/upload", requireAuth, (req, res, next) => {
-  upload.single("image")(req, res, (err) => {
+// --- Upload API (Теперь загружает напрямую в Firebase Storage) ---
+app.post("/api/upload", requireAuth, (req, res) => {
+  upload.single("image")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.message || "Failed to upload image" });
     }
@@ -381,13 +275,62 @@ app.post("/api/upload", requireAuth, (req, res, next) => {
         return res.status(400).json({ error: "No image file provided" });
       }
 
-      const safeName = path.basename(file.filename);
+      const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const destinationPath = `uploads/${safeName}`;
+
+      // Если подключен Firebase Storage — сохраняем туда
+      if (storageBucket) {
+        const fileRef = storageBucket.file(destinationPath);
+        await fileRef.save(file.buffer, {
+          resumable: false,
+          contentType: file.mimetype,
+          metadata: {
+            cacheControl: "public, max-age=31536000, immutable",
+          },
+        });
+        console.log(`Uploaded ${safeName} to Firebase Storage`);
+      }
+
+      // Сохраняем копию локально (для быстрой отдачи до первого рестарта)
+      const localFilePath = path.join(UPLOAD_DIR, safeName);
+      fs.writeFileSync(localFilePath, file.buffer);
+
+      // Возвращаем привычный адрес вида /uploads/filename.png
       res.json({ url: `/uploads/${safeName}` });
     } catch (error) {
       console.error("Upload failed:", error);
       res.status(500).json({ error: "Failed to upload image" });
     }
   });
+});
+
+// --- Роут отгрузки загруженных картинок (`/uploads/:filename`) ---
+app.get("/uploads/:filename", async (req, res) => {
+  const { filename } = req.params;
+  const localPath = path.join(UPLOAD_DIR, filename);
+
+  // 1. Проверяем наличие файла на локальном диске
+  if (fs.existsSync(localPath)) {
+    return res.sendFile(localPath);
+  }
+
+  // 2. Если диск очистился (после редеплоя на Render) — забираем из Firebase Storage
+  if (storageBucket) {
+    try {
+      const file = storageBucket.file(`uploads/${filename}`);
+      const [exists] = await file.exists();
+      if (exists) {
+        const ext = path.extname(filename).toLowerCase();
+        const contentType = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+        res.setHeader("Content-Type", contentType);
+        return file.createReadStream().pipe(res);
+      }
+    } catch (err) {
+      console.warn(`Failed to stream /uploads/${filename} from Storage:`, err);
+    }
+  }
+
+  res.status(404).send("File not found");
 });
 
 // --- News API ---
@@ -537,9 +480,6 @@ app.get("/api/server-stats", async (req, res) => {
 
     const apiKey = process.env.FOREVER_HOST_API_KEY;
     if (apiKey) {
-      // We assume the actual URL based on documentation.
-      // Usually it's something like /v1/servers/:id/stats or similar.
-      // If it's a specific endpoint, adjust accordingly.
       const response = await fetch("https://api.forever-host.xyz/server/data?node=n01&gdpsid=0004", {
         headers: {
           "Authorization": "Bearer " + apiKey,
@@ -563,7 +503,7 @@ app.get("/api/server-stats", async (req, res) => {
     const data = {
       accounts,
       levels,
-      rates: 0, // Not provided by this endpoint
+      rates: 0,
       songs: songCount,
     };
     cache.set("serverStats", data);
@@ -571,7 +511,6 @@ app.get("/api/server-stats", async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error("Error fetching server stats:", error);
-    // Fallback data on error
     res.json({
       accounts: 0,
       levels: 0,
@@ -582,11 +521,6 @@ app.get("/api/server-stats", async (req, res) => {
 });
 
 // --- GDPS Music Count API (Playwright Browser Automation) ---
-/**
- * Scrapes the custom music count from the Forever Host control panel
- * Uses Playwright to emulate a real browser and handle authentication
- * Requires GDPS_USERNAME and GDPS_PASSWORD environment variables
- */
 let browser: Browser | null = null;
 
 async function getBrowser(): Promise<Browser> {
@@ -614,38 +548,26 @@ async function fetchGDPSMusicCount(): Promise<number | null> {
     page = await browser.newPage();
 
     console.log("Navigating to Forever Host panel...");
-    
-    // Navigate to the music list page
     await page.goto("https://n01.forever-host.xyz/0004/panel/music/list", {
       waitUntil: "networkidle",
       timeout: 30000
     });
 
-    // Check if we need to log in (look for login form)
     const loginFormExists = await page.locator("input[name='username'], input[name='user'], input[type='text']").first().isVisible().catch(() => false);
 
     if (loginFormExists) {
       console.log("Login form detected. Authenticating...");
-      
-      // Fill in the login form
       await page.fill("input[name='username'], input[name='user'], input[type='text']", username);
       await page.fill("input[name='password'], input[type='password']", password);
-
-      // Submit the form
       await page.click("button[type='submit'], input[type='submit']");
-
-      // Wait for navigation after login
       await page.waitForNavigation({ waitUntil: "networkidle", timeout: 30000 }).catch(() => {});
-      await page.waitForTimeout(1000); // Small delay to ensure page loads
+      await page.waitForTimeout(1000);
     }
 
-    // Wait for the music list to be visible
     const musicListSelector = "table tbody tr, .music-list li, [data-music-item], .music-item";
     await page.waitForSelector(musicListSelector, { timeout: 10000 }).catch(() => {});
 
-    // Count the music entries
     const musicCount = await page.locator(musicListSelector).count();
-
     console.log(`Fetched GDPS music count: ${musicCount}`);
     return musicCount > 0 ? musicCount : null;
   } catch (error) {
@@ -667,14 +589,12 @@ async function closeBrowser() {
 
 app.get("/api/gdps/music/count", async (req, res) => {
   try {
-    // Check cache first
     const cacheKey = "gdpsMusicCount";
     const cachedCount = cache.get(cacheKey);
     if (cachedCount !== undefined) {
       return res.json({ count: cachedCount, cached: true });
     }
 
-    // Fetch fresh data
     const count = await fetchGDPSMusicCount();
 
     if (count === null) {
@@ -684,15 +604,16 @@ app.get("/api/gdps/music/count", async (req, res) => {
       });
     }
 
-    // Cache the result
     cache.set(cacheKey, count);
-
     res.json({ count, cached: false });
   } catch (error) {
     console.error("Error in /api/gdps/music/count:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Статические файлы приложения
+app.use(express.static(PUBLIC_DIR));
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -705,9 +626,7 @@ async function startServer() {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
 
-    // 2. Исправленный SPA-роут: отдает index.html ТОЛЬКО для страниц, но не для отсутствующих файлов
     app.get("*", (req, res) => {
-      // Если запрос содержит точку (например /logo.png или /uploads/123.jpg) — отдаем честный 404
       if (req.path.includes(".")) {
         return res.status(404).send("File not found");
       }
@@ -715,10 +634,17 @@ async function startServer() {
     });
   }
 
-  await initStorageAssets();
-
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+  });
+
+  process.on("SIGINT", async () => {
+    console.log("Shutting down server...");
+    await closeBrowser();
+    server.close(() => {
+      console.log("Server closed");
+      process.exit(0);
+    });
   });
 }
 
