@@ -30,7 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center justify-between h-16">
             <div className="flex-shrink-0 flex items-center gap-2">
               <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <img src="/public/uploads/logo.png" alt="TMGDPS Logo" className="w-8 h-8 rounded-full object-cover" />
+                <img src="/uploads/logo.png" alt="TMGDPS Logo" className="w-8 h-8 rounded-full object-cover" />
                 <span className="font-display font-bold text-xl tracking-tight">TMGDPS</span>
               </Link>
             </div>
