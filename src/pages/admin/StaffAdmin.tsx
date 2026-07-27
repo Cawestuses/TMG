@@ -141,48 +141,57 @@ export function StaffAdmin() {
               />
             </div>
             <div className="md:col-span-2">
-                <label className="block text-sm text-gray-400 mb-1">Аватар (изображение)</label>
-                <div className="flex items-center gap-4 mb-2">
-                  {editingMember.avatarUrl ? (
-                    <img src={editingMember.avatarUrl} alt="avatar" className="w-16 h-16 rounded-full object-cover border" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-surface border border-white/10 flex items-center justify-center font-bold text-xl uppercase">
-                      {editingMember.nickname ? editingMember.nickname.charAt(0) : "?"}
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files && e.target.files[0];
-                      if (!file) return;
-                      setUploading(true);
-                      try {
-                        const token = localStorage.getItem("admin_token");
-                        const fd = new FormData();
-                        fd.append("image", file);
-                        const res = await fetch("/api/upload", {
-                          method: "POST",
-                          headers: {
-                            "Authorization": `Bearer ${token}`,
-                          },
-                          body: fd
-                        });
-                        if (!res.ok) throw new Error("Upload failed");
-                        const json = await res.json();
-                        setEditingMember({ ...editingMember, avatarUrl: json.url });
-                      } catch (err) {
-                        console.error("Upload error:", err);
-                      } finally {
-                        setUploading(false);
-                      }
-                    }}
-                    className="text-sm"
-                    disabled={uploading}
-                  />
-                  {uploading && <div className="text-sm text-gray-400">Загрузка...</div>}
-                </div>
-              <label className="block text-sm text-gray-400 mb-1">
+              <label className="block text-sm text-gray-400 mb-1">Аватар (изображение)</label>
+              <div className="flex items-center gap-4 mb-2">
+                {editingMember.avatarUrl ? (
+                  <img src={editingMember.avatarUrl} alt="avatar" className="w-16 h-16 rounded-full object-cover border" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-surface border border-white/10 flex items-center justify-center font-bold text-xl uppercase">
+                    {editingMember.nickname ? editingMember.nickname.charAt(0) : "?"}
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (!file) return;
+                    setUploading(true);
+                    try {
+                      const token = localStorage.getItem("admin_token");
+                      const fd = new FormData();
+                      fd.append("image", file);
+                      const res = await fetch("/api/upload", {
+                        method: "POST",
+                        headers: {
+                          "Authorization": `Bearer ${token}`,
+                        },
+                        body: fd
+                      });
+                      if (!res.ok) throw new Error("Upload failed");
+                      const json = await res.json();
+                      setEditingMember({ ...editingMember, avatarUrl: json.url });
+                    } catch (err) {
+                      console.error("Upload error:", err);
+                      alert("Не удалось загрузить аватар. Проверьте файл и доступ к серверу.");
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                  className="text-sm"
+                  disabled={uploading}
+                />
+                {uploading && <div className="text-sm text-gray-400">Загрузка...</div>}
+              </div>
+              <label className="block text-sm text-gray-400 mb-1">Ссылка на аватар (опционально)</label>
+              <input
+                type="url"
+                placeholder="https://example.com/avatar.png"
+                value={editingMember.avatarUrl || ""}
+                onChange={e => setEditingMember({ ...editingMember, avatarUrl: e.target.value })}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-white"
+              />
+              <label className="block text-sm text-gray-400 mb-1 mt-3">
                 {editingMember.category === 'discord_moderation' ? 'Discord ник (опционально)' : 'Ник в Geometry Dash (опционально)'}
               </label>
               <input

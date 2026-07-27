@@ -9,6 +9,7 @@ import { chromium, Browser, Page } from "playwright";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { resolveUploadUrl } from "./src/lib/uploadService";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -274,39 +275,43 @@ app.post("/api/upload", requireAuth, (req, res) => {
     }
 
     const file = req.file;
+    const remoteUrl = typeof req.body?.remoteUrl === "string" ? req.body.remoteUrl.trim() : "";
+
+    if (remoteUrl) {
+      return res.json({ url: remoteUrl });
+    }
+
     if (!file) {
       return res.status(400).json({ error: "No image file provided (field 'image' expected)" });
     }
 
     try {
-      // Если доступен Firebase Service Account и Storage Bucket, загружаем в облако
-      if (hasServiceAccount && storageBucketName) {
-        const bucket = getStorage().bucket();
-        const destination = `uploads/${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-        
-        await bucket.upload(file.path, {
-          destination,
-          public: true,
-          metadata: {
-            contentType: file.mimetype,
-          },
-        });
+      const resolvedUrl = await resolveUploadUrl(file as any, {
+        uploadToCloud: async (uploadFile: { path: string; originalname: string; mimetype: string }, destination: string) => {
+          if (!hasServiceAccount || !storageBucketName) {
+            throw new Error("Cloud upload is unavailable");
+          }
 
-        // Удаляем локальный временный файл после загрузки в облако
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
+          const bucket = getStorage().bucket();
+          await bucket.upload(uploadFile.path, {
+            destination,
+            public: true,
+            metadata: {
+              contentType: uploadFile.mimetype,
+            },
+          });
 
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-        return res.json({ url: publicUrl });
-      }
+          if (fs.existsSync(uploadFile.path)) {
+            fs.unlinkSync(uploadFile.path);
+          }
 
-      // Фолбэк на локальный диск
-      const safeName = path.basename(file.filename);
-      return res.json({ url: `/uploads/${safeName}` });
+          return `https://storage.googleapis.com/${bucket.name}/${destination}`;
+        },
+      });
+
+      return res.json({ url: resolvedUrl });
     } catch (error: any) {
       console.error("Upload failed:", error);
-      // Очистка при ошибке
       if (file?.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }

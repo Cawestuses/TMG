@@ -1,0 +1,35 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { resolveUploadUrl } from "../src/lib/uploadService";
+
+test("falls back to a local upload URL when cloud upload fails", async () => {
+  const file = { filename: "1700000000000-photo.png", originalname: "photo.png" };
+
+  const url = await resolveUploadUrl(file, {
+    uploadToCloud: async () => {
+      throw new Error("storage unavailable");
+    },
+  });
+
+  assert.equal(url, "/uploads/1700000000000-photo.png");
+});
+
+test("uses the cloud URL when cloud upload succeeds", async () => {
+  const file = { filename: "1700000000001-photo.png", originalname: "photo.png" };
+
+  const url = await resolveUploadUrl(file, {
+    uploadToCloud: async () => "https://cdn.example.com/uploaded/photo.png",
+  });
+
+  assert.equal(url, "https://cdn.example.com/uploaded/photo.png");
+});
+
+test("returns a provided remote URL without uploading a file", async () => {
+  const url = await resolveUploadUrl(
+    { filename: "avatar.png", originalname: "avatar.png" },
+    {},
+    "https://cdn.example.com/avatars/staff.png"
+  );
+
+  assert.equal(url, "https://cdn.example.com/avatars/staff.png");
+});
