@@ -1,7 +1,22 @@
 import path from "path";
 
+const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"]);
+
 export interface UploadServiceDeps {
   uploadToCloud?: (file: { path: string; originalname: string; mimetype: string }, destination: string) => Promise<string>;
+}
+
+export function isAllowedImageUpload(file: { originalname?: string; mimetype?: string }) {
+  const mimetype = typeof file.mimetype === "string" ? file.mimetype.toLowerCase() : "";
+  const extension = typeof file.originalname === "string"
+    ? path.extname(file.originalname).toLowerCase()
+    : "";
+
+  if (mimetype.startsWith("image/")) {
+    return true;
+  }
+
+  return ALLOWED_IMAGE_EXTENSIONS.has(extension);
 }
 
 export async function resolveUploadUrl(

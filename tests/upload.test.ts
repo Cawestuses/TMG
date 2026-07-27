@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveUploadUrl } from "../src/lib/uploadService";
+import { isAllowedImageUpload, resolveUploadUrl } from "../src/lib/uploadService";
 
 test("falls back to a local upload URL when cloud upload fails", async () => {
   const file = { filename: "1700000000000-photo.png", originalname: "photo.png" };
@@ -32,4 +32,11 @@ test("returns a provided remote URL without uploading a file", async () => {
   );
 
   assert.equal(url, "https://cdn.example.com/avatars/staff.png");
+});
+
+test("allows common image extensions even when mimetype is missing", () => {
+  assert.equal(isAllowedImageUpload({ originalname: "photo.jpg", mimetype: "" }), true);
+  assert.equal(isAllowedImageUpload({ originalname: "photo.jpeg", mimetype: "application/octet-stream" }), true);
+  assert.equal(isAllowedImageUpload({ originalname: "photo.webp", mimetype: "" }), true);
+  assert.equal(isAllowedImageUpload({ originalname: "archive.exe", mimetype: "" }), false);
 });

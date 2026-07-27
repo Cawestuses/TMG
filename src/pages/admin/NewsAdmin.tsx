@@ -264,12 +264,15 @@ export function NewsAdmin() {
                   
                   <button
                     type="button"
-                    disabled={!imageUrlInput}
                     onClick={() => {
+                      if (!imageUrlInput.trim()) {
+                        alert("Введите ссылку на изображение или используйте загрузку файла.");
+                        return;
+                      }
                       insertAtCursor(`![](${imageUrlInput})`);
                       setImageUrlInput("");
                     }}
-                    className="w-full bg-white/5 border border-white/10 hover:border-primary/40 hover:bg-primary/5 text-xs text-white py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                    className="w-full bg-white/5 border border-white/10 hover:border-primary/40 hover:bg-primary/5 text-xs text-white py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all"
                   >
                     <Link className="w-3.5 h-3.5 text-primary" />
                     Вставить картинку по ссылке

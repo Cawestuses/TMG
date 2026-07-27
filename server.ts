@@ -9,7 +9,7 @@ import { chromium, Browser, Page } from "playwright";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { resolveUploadUrl } from "./src/lib/uploadService";
+import { isAllowedImageUpload, resolveUploadUrl } from "./src/lib/uploadService";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -106,8 +106,11 @@ const upload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Only images are allowed"));
+    if (isAllowedImageUpload(file)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only images are allowed"));
+    }
   }
 });
 
