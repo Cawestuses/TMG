@@ -185,7 +185,7 @@ export function StaffAdmin() {
               </div>
               <label className="block text-sm text-gray-400 mb-1">Ссылка на аватар (опционально)</label>
               <input
-                type="url"
+                type="text"
                 placeholder="https://example.com/avatar.png"
                 value={editingMember.avatarUrl || ""}
                 onChange={e => setEditingMember({ ...editingMember, avatarUrl: e.target.value })}
