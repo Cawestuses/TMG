@@ -265,10 +265,6 @@ export function NewsAdmin() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!imageUrlInput.trim()) {
-                        alert("Введите ссылку на изображение или используйте загрузку файла.");
-                        return;
-                      }
                       insertAtCursor(`![](${imageUrlInput})`);
                       setImageUrlInput("");
                     }}
