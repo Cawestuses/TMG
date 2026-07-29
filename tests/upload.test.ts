@@ -34,6 +34,21 @@ test("returns a provided remote URL without uploading a file", async () => {
   assert.equal(url, "https://cdn.example.com/avatars/staff.png");
 });
 
+test("downloads a remote image URL when a downloader is provided", async () => {
+  const url = await resolveUploadUrl(
+    { filename: "avatar.png", originalname: "avatar.png" },
+    {
+      downloadRemoteUrl: async (remoteUrl) => {
+        assert.equal(remoteUrl, "https://cdn.example.com/avatars/staff.webp");
+        return "/uploads/downloaded-staff.webp";
+      },
+    },
+    "https://cdn.example.com/avatars/staff.webp"
+  );
+
+  assert.equal(url, "/uploads/downloaded-staff.webp");
+});
+
 test("allows common image extensions even when mimetype is missing", () => {
   assert.equal(isAllowedImageUpload({ originalname: "photo.jpg", mimetype: "" }), true);
   assert.equal(isAllowedImageUpload({ originalname: "photo.jpeg", mimetype: "application/octet-stream" }), true);

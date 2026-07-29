@@ -3,6 +3,8 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import NodeCache from "node-cache";
 import fs from "fs";
+import https from "https";
+import http from "http";
 import multer from "multer";
 import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
@@ -270,6 +272,53 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   }
 }
 
+function downloadRemoteImage(remoteUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(remoteUrl);
+    const client = parsedUrl.protocol === "https:" ? https : http;
+
+    const request = client.get(parsedUrl, (response) => {
+      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        resolve(downloadRemoteImage(response.headers.location));
+        return;
+      }
+
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(new Error(`Failed to download image: ${response.statusCode}`));
+        return;
+      }
+
+      const contentType = response.headers["content-type"] || "";
+      const ext = contentType.includes("webp")
+        ? ".webp"
+        : contentType.includes("png")
+          ? ".png"
+          : contentType.includes("jpg") || contentType.includes("jpeg")
+            ? ".jpg"
+            : contentType.includes("gif")
+              ? ".gif"
+              : contentType.includes("svg")
+                ? ".svg"
+                : path.extname(parsedUrl.pathname) || ".bin";
+
+      const fileName = `${Date.now()}-${path.basename(parsedUrl.pathname) || "remote-image"}${ext}`;
+      const destinationPath = path.join(UPLOAD_DIR, fileName.replace(/[^a-zA-Z0-9._-]/g, "_"));
+      const writeStream = fs.createWriteStream(destinationPath);
+
+      response.pipe(writeStream);
+      writeStream.on("finish", () => {
+        writeStream.close();
+        resolve(`/uploads/${path.basename(destinationPath)}`);
+      });
+      writeStream.on("error", reject);
+    });
+
+    request.on("error", reject);
+  });
+}
+
 // --- Upload API (Firebase Storage с фолбэком на локальное хранилище) ---
 app.post("/api/upload", requireAuth, (req, res) => {
   upload.single("image")(req, res, async (err: any) => {
@@ -281,7 +330,13 @@ app.post("/api/upload", requireAuth, (req, res) => {
     const remoteUrl = typeof req.body?.remoteUrl === "string" ? req.body.remoteUrl.trim() : "";
 
     if (remoteUrl) {
-      return res.json({ url: remoteUrl });
+      try {
+        const downloadedUrl = await downloadRemoteImage(remoteUrl);
+        return res.json({ url: downloadedUrl });
+      } catch (error: any) {
+        console.error("Remote image download failed:", error);
+        return res.status(400).json({ error: error.message || "Failed to download remote image" });
+      }
     }
 
     if (!file) {
@@ -290,6 +345,7 @@ app.post("/api/upload", requireAuth, (req, res) => {
 
     try {
       const resolvedUrl = await resolveUploadUrl(file as any, {
+        downloadRemoteUrl: async (downloadUrl: string) => downloadRemoteImage(downloadUrl),
         uploadToCloud: async (uploadFile: { path: string; originalname: string; mimetype: string }, destination: string) => {
           if (!hasServiceAccount || !storageBucketName) {
             throw new Error("Cloud upload is unavailable");

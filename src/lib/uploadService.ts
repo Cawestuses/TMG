@@ -4,6 +4,7 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".web
 
 export interface UploadServiceDeps {
   uploadToCloud?: (file: { path: string; originalname: string; mimetype: string }, destination: string) => Promise<string>;
+  downloadRemoteUrl?: (remoteUrl: string) => Promise<string>;
 }
 
 export function isAllowedImageUpload(file: { originalname?: string; mimetype?: string }) {
@@ -26,6 +27,13 @@ export async function resolveUploadUrl(
 ): Promise<string> {
   const trimmedRemoteUrl = typeof remoteUrl === "string" ? remoteUrl.trim() : "";
   if (trimmedRemoteUrl) {
+    if (typeof deps.downloadRemoteUrl === "function") {
+      try {
+        return await deps.downloadRemoteUrl(trimmedRemoteUrl);
+      } catch (error) {
+        console.warn("Remote image download failed, falling back to the original URL:", error);
+      }
+    }
     return trimmedRemoteUrl;
   }
 
