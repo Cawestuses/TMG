@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { GlowCard } from "@/src/components/GlowCard";
 import { LogIn } from "lucide-react";
+import { adminLogin } from "@/src/lib/adminApi";
 
-export function AuthPanel({ onAuth }: { onAuth: (token: string) => void }) {
+export function AuthPanel({ onAuth }: { onAuth: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -12,20 +13,14 @@ export function AuthPanel({ onAuth }: { onAuth: (token: string) => void }) {
     setError("");
 
     try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: email, password })
-      });
-      const data = await res.json();
-      
-      if (res.ok && data.success) {
-        localStorage.setItem("admin_token", data.token);
-        onAuth(data.token);
+      const result = await adminLogin(email, password);
+
+      if (result.success) {
+        onAuth();
       } else {
-        setError(data.error || "Ошибка авторизации");
+        setError(result.error || "Ошибка авторизации");
       }
-    } catch (err: any) {
+    } catch {
       setError("Ошибка соединения с сервером");
     }
   };

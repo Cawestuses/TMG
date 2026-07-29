@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StaffMember, StaffCategory } from "@/src/types/gdps";
 import { Plus, Edit2, Trash2, X } from "lucide-react";
+import { adminFetch } from "@/src/lib/adminApi";
 
 export function StaffAdmin() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -30,7 +31,6 @@ export function StaffAdmin() {
     if (!editingMember) return;
 
     try {
-      const token = localStorage.getItem("admin_token");
       const memberData = {
         nickname: editingMember.nickname || "",
         role: editingMember.role || "",
@@ -43,11 +43,10 @@ export function StaffAdmin() {
       const url = editingMember.id ? `/api/staff/${editingMember.id}` : "/api/staff";
       const method = editingMember.id ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify(memberData)
       });
@@ -68,12 +67,8 @@ export function StaffAdmin() {
 
   const handleDelete = async (id: string) => {
     try {
-      const token = localStorage.getItem("admin_token");
-      const res = await fetch(`/api/staff/${id}`, {
+      const res = await adminFetch(`/api/staff/${id}`, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
       });
       if (!res.ok) throw new Error("Failed to delete");
       fetchStaff();
@@ -163,14 +158,10 @@ export function StaffAdmin() {
                     if (!file) return;
                     setUploading(true);
                     try {
-                      const token = localStorage.getItem("admin_token");
                       const fd = new FormData();
                       fd.append("image", file);
-                      const res = await fetch("/api/upload", {
+                      const res = await adminFetch("/api/upload", {
                         method: "POST",
-                        headers: {
-                          "Authorization": `Bearer ${token}`,
-                        },
                         body: fd
                       });
                       if (!res.ok) throw new Error("Upload failed");

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { NewsPost } from "@/src/types/gdps";
 import { Plus, Edit2, Trash2, X, Image, Upload, Link, Video } from "lucide-react";
+import { adminFetch } from "@/src/lib/adminApi";
 
 export function NewsAdmin() {
   const [news, setNews] = useState<NewsPost[]>([]);
@@ -38,7 +39,6 @@ export function NewsAdmin() {
     if (!editingPost) return;
 
     try {
-      const token = localStorage.getItem("admin_token");
       const postData = {
         title: editingPost.title || "",
         content: editingPost.content || "",
@@ -49,11 +49,10 @@ export function NewsAdmin() {
       const url = editingPost.id ? `/api/news/${editingPost.id}` : "/api/news";
       const method = editingPost.id ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify(postData)
       });
@@ -69,12 +68,8 @@ export function NewsAdmin() {
 
   const handleDelete = async (id: string) => {
     try {
-      const token = localStorage.getItem("admin_token");
-      const res = await fetch(`/api/news/${id}`, {
+      const res = await adminFetch(`/api/news/${id}`, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
       });
       if (!res.ok) throw new Error("Failed to delete");
       fetchNews();
@@ -111,15 +106,11 @@ export function NewsAdmin() {
     if (!file) return;
     setUploading(true);
     try {
-      const token = localStorage.getItem("admin_token");
       const formData = new FormData();
       formData.append("image", file);
 
-      const res = await fetch("/api/upload", {
+      const res = await adminFetch("/api/upload", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
         body: formData
       });
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, X } from "lucide-react";
+import { adminFetch } from "@/src/lib/adminApi";
 
 export function FaqAdmin() {
   const [faqs, setFaqs] = useState<{ id?: string, question: string, answer: string, order?: number }[]>([]);
@@ -28,7 +29,6 @@ export function FaqAdmin() {
     if (!editingFaq) return;
 
     try {
-      const token = localStorage.getItem("admin_token");
       const faqData = {
         question: editingFaq.question || "",
         answer: editingFaq.answer || "",
@@ -38,11 +38,10 @@ export function FaqAdmin() {
       const url = editingFaq.id ? `/api/faq/${editingFaq.id}` : "/api/faq";
       const method = editingFaq.id ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify(faqData)
       });
@@ -58,12 +57,8 @@ export function FaqAdmin() {
 
   const handleDelete = async (id: string) => {
     try {
-      const token = localStorage.getItem("admin_token");
-      const res = await fetch(`/api/faq/${id}`, {
+      const res = await adminFetch(`/api/faq/${id}`, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
       });
       if (!res.ok) throw new Error("Failed to delete");
       fetchFaqs();

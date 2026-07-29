@@ -4,25 +4,27 @@ import { NewsAdmin } from "./admin/NewsAdmin";
 import { StaffAdmin } from "./admin/StaffAdmin";
 import { FaqAdmin } from "./admin/FaqAdmin";
 import { LogOut, LayoutDashboard } from "lucide-react";
+import { adminLogout, checkAdminSession } from "@/src/lib/adminApi";
 
 export function Admin() {
-  const [token, setToken] = useState<string | null>(null);
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<"news" | "staff" | "faq">("news");
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("admin_token");
-    if (savedToken) {
-      setToken(savedToken);
-    }
+    checkAdminSession().then(setAuthenticated);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("admin_token");
-    setToken(null);
+  const handleLogout = async () => {
+    await adminLogout();
+    setAuthenticated(false);
   };
 
-  if (!token) {
-    return <AuthPanel onAuth={(t) => setToken(t)} />;
+  if (authenticated === null) {
+    return <div className="text-gray-400 animate-pulse py-20 text-center">Проверка сессии...</div>;
+  }
+
+  if (!authenticated) {
+    return <AuthPanel onAuth={() => setAuthenticated(true)} />;
   }
 
   return (

@@ -3,21 +3,97 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import NodeCache from "node-cache";
 import fs from "fs";
-import https from "https";
-import http from "http";
+import { randomUUID } from "crypto";
 import multer from "multer";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
+import { z } from "zod";
 import "dotenv/config";
 import { chromium, Browser, Page } from "playwright";
 import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { isAllowedImageUpload, resolveUploadUrl } from "./src/lib/uploadService";
+import {
+  extensionForImageType,
+  isAllowedImageUpload,
+  mimetypeForImageType,
+  resolveUploadUrl,
+  validateUploadedImageFile,
+} from "./src/lib/uploadService";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
+const SESSION_COOKIE_NAME = "admin_session";
+const activeSessions = new Set<string>();
 
-app.use(express.json({ limit: "50mb" }));
+app.set("trust proxy", 1);
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+app.use(cookieParser());
+app.use(express.json({ limit: "100kb" }));
+
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Слишком много попыток входа. Попробуйте через 15 минут." },
+});
+
+const newsCreateSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  content: z.string().min(1).max(50000),
+  author: z.string().trim().min(1).max(200),
+  date: z.string().datetime().optional(),
+}).strict();
+
+const newsUpdateSchema = newsCreateSchema.partial().strict();
+
+const staffCreateSchema = z.object({
+  nickname: z.string().trim().min(1).max(100),
+  role: z.string().trim().min(1).max(200),
+  category: z.enum(["private_server", "discord_moderation"]),
+  avatarUrl: z.string().trim().max(2000).optional(),
+  socialLink: z.string().trim().max(500).optional(),
+  order: z.coerce.number().int().min(0).max(10000),
+}).strict();
+
+const staffUpdateSchema = staffCreateSchema.strict();
+
+const faqCreateSchema = z.object({
+  question: z.string().trim().min(1).max(500),
+  answer: z.string().min(1).max(10000),
+  order: z.coerce.number().int().min(0).max(10000),
+}).strict();
+
+const faqUpdateSchema = faqCreateSchema.strict();
+
+function getSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict" as const,
+    path: "/",
+    maxAge: 24 * 60 * 60 * 1000,
+  };
+}
+
+function stripClientId(body: Record<string, unknown>) {
+  const { id: _ignored, ...rest } = body;
+  return rest;
+}
+
+function parseBody<T>(schema: z.ZodType<T>, body: unknown): { success: true; data: T } | { success: false; error: string } {
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    const message = result.error.issues.map((issue) => issue.message).join("; ");
+    return { success: false, error: message || "Invalid request body" };
+  }
+  return { success: true, data: result.data };
+}
 
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -100,20 +176,17 @@ app.use("/uploads", express.static(UPLOAD_DIR));
 
 const upload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => {
-      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-      cb(null, `${Date.now()}-${safeName}`);
-    }
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, _file, cb) => cb(null, `${randomUUID()}.tmp`),
   }),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
     if (isAllowedImageUpload(file)) {
       cb(null, true);
     } else {
-      cb(new Error("Only images are allowed"));
+      cb(new Error("Only JPEG, PNG, and WebP images are allowed"));
     }
-  }
+  },
 });
 
 const DB_FILE = path.join(process.cwd(), "data.json");
@@ -251,117 +324,105 @@ async function deleteDocFromCollection(collectionName: "news" | "staff" | "faq",
 }
 
 // --- Admin Auth API ---
-app.post("/api/admin/login", (req, res) => {
-  const { username, password } = req.body;
-  const adminUser = process.env.ADMIN_USERNAME || "admin";
-  const adminPass = process.env.ADMIN_PASSWORD || "admin";
+app.post("/api/admin/login", loginRateLimiter, (req, res) => {
+  const adminUser = process.env.ADMIN_USERNAME;
+  const adminPass = process.env.ADMIN_PASSWORD;
+
+  if (!adminUser || !adminPass) {
+    return res.status(503).json({ error: "Админ-авторизация не настроена на сервере" });
+  }
+
+  const { username, password } = req.body ?? {};
+  if (typeof username !== "string" || typeof password !== "string") {
+    return res.status(400).json({ error: "Неверный формат запроса" });
+  }
 
   if (username === adminUser && password === adminPass) {
-    res.json({ success: true, token: "admin-session-token-123" });
-  } else {
-    res.status(401).json({ error: "Неверный логин или пароль" });
+    const sessionToken = randomUUID();
+    activeSessions.add(sessionToken);
+    res.cookie(SESSION_COOKIE_NAME, sessionToken, getSessionCookieOptions());
+    return res.json({ success: true });
   }
+
+  return res.status(401).json({ error: "Неверный логин или пароль" });
+});
+
+app.get("/api/admin/session", (req, res) => {
+  const token = req.cookies?.[SESSION_COOKIE_NAME];
+  res.json({ authenticated: typeof token === "string" && activeSessions.has(token) });
+});
+
+app.post("/api/admin/logout", (req, res) => {
+  const token = req.cookies?.[SESSION_COOKIE_NAME];
+  if (typeof token === "string") {
+    activeSessions.delete(token);
+  }
+  res.clearCookie(SESSION_COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+  });
+  res.json({ success: true });
 });
 
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const token = req.headers.authorization;
-  if (token === "Bearer admin-session-token-123") {
+  const token = req.cookies?.[SESSION_COOKIE_NAME];
+  if (typeof token === "string" && activeSessions.has(token)) {
     next();
-  } else {
-    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
-}
-
-function downloadRemoteImage(remoteUrl: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(remoteUrl);
-    const client = parsedUrl.protocol === "https:" ? https : http;
-
-    const request = client.get(parsedUrl, (response) => {
-      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        response.resume();
-        resolve(downloadRemoteImage(response.headers.location));
-        return;
-      }
-
-      if (response.statusCode !== 200) {
-        response.resume();
-        reject(new Error(`Failed to download image: ${response.statusCode}`));
-        return;
-      }
-
-      const contentType = response.headers["content-type"] || "";
-      const ext = contentType.includes("webp")
-        ? ".webp"
-        : contentType.includes("png")
-          ? ".png"
-          : contentType.includes("jpg") || contentType.includes("jpeg")
-            ? ".jpg"
-            : contentType.includes("gif")
-              ? ".gif"
-              : contentType.includes("svg")
-                ? ".svg"
-                : path.extname(parsedUrl.pathname) || ".bin";
-
-      const fileName = `${Date.now()}-${path.basename(parsedUrl.pathname) || "remote-image"}${ext}`;
-      const destinationPath = path.join(UPLOAD_DIR, fileName.replace(/[^a-zA-Z0-9._-]/g, "_"));
-      const writeStream = fs.createWriteStream(destinationPath);
-
-      response.pipe(writeStream);
-      writeStream.on("finish", () => {
-        writeStream.close();
-        resolve(`/uploads/${path.basename(destinationPath)}`);
-      });
-      writeStream.on("error", reject);
-    });
-
-    request.on("error", reject);
-  });
+  res.status(401).json({ error: "Unauthorized" });
 }
 
 // --- Upload API (Firebase Storage с фолбэком на локальное хранилище) ---
 app.post("/api/upload", requireAuth, (req, res) => {
   upload.single("image")(req, res, async (err: any) => {
+    const file = req.file;
+
     if (err) {
       return res.status(400).json({ error: err.message || "Failed to upload image" });
     }
 
-    const file = req.file;
-    const remoteUrl = typeof req.body?.remoteUrl === "string" ? req.body.remoteUrl.trim() : "";
-
-    if (remoteUrl) {
-      try {
-        const downloadedUrl = await downloadRemoteImage(remoteUrl);
-        return res.json({ url: downloadedUrl });
-      } catch (error: any) {
-        console.error("Remote image download failed:", error);
-        return res.status(400).json({ error: error.message || "Failed to download remote image" });
-      }
-    }
-
-    if (!file) {
+    if (!file?.path) {
       return res.status(400).json({ error: "No image file provided (field 'image' expected)" });
     }
 
     try {
-      const resolvedUrl = await resolveUploadUrl(file as any, {
-        downloadRemoteUrl: async (downloadUrl: string) => downloadRemoteImage(downloadUrl),
-        uploadToCloud: async (uploadFile: { path: string; originalname: string; mimetype: string }, destination: string) => {
+      const detectedType = validateUploadedImageFile(file.path);
+      if (!detectedType) {
+        fs.unlinkSync(file.path);
+        return res.status(400).json({ error: "Invalid image file. Only JPEG, PNG, and WebP are allowed." });
+      }
+
+      const finalName = `${randomUUID()}${extensionForImageType(detectedType)}`;
+      const finalPath = path.join(UPLOAD_DIR, finalName);
+      fs.renameSync(file.path, finalPath);
+
+      const uploadFile = {
+        path: finalPath,
+        filename: finalName,
+        originalname: finalName,
+        mimetype: mimetypeForImageType(detectedType),
+      };
+
+      const resolvedUrl = await resolveUploadUrl(uploadFile, {
+        uploadToCloud: async (cloudFile, destination) => {
           if (!hasServiceAccount || !storageBucketName) {
             throw new Error("Cloud upload is unavailable");
           }
 
           const bucket = getStorage().bucket();
-          await bucket.upload(uploadFile.path, {
+          await bucket.upload(cloudFile.path, {
             destination,
             public: true,
             metadata: {
-              contentType: uploadFile.mimetype,
+              contentType: cloudFile.mimetype,
             },
           });
 
-          if (fs.existsSync(uploadFile.path)) {
-            fs.unlinkSync(uploadFile.path);
+          if (fs.existsSync(cloudFile.path)) {
+            fs.unlinkSync(cloudFile.path);
           }
 
           return `https://storage.googleapis.com/${bucket.name}/${destination}`;
@@ -392,7 +453,16 @@ app.get("/api/news", async (req, res) => {
 
 app.post("/api/news", requireAuth, async (req, res) => {
   try {
-    const newPost = { id: Date.now().toString(), ...req.body };
+    const parsed = parseBody(newsCreateSchema, stripClientId(req.body ?? {}));
+    if (parsed.success === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
+
+    const newPost = {
+      id: randomUUID(),
+      ...parsed.data,
+      date: parsed.data.date || new Date().toISOString(),
+    };
     const saved = await saveDocToCollection("news", newPost);
     res.json(saved);
   } catch (error) {
@@ -403,7 +473,12 @@ app.post("/api/news", requireAuth, async (req, res) => {
 
 app.put("/api/news/:id", requireAuth, async (req, res) => {
   try {
-    const updated = await updateDocInCollection("news", req.params.id, req.body);
+    const parsed = parseBody(newsUpdateSchema, stripClientId(req.body ?? {}));
+    if (parsed.success === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
+
+    const updated = await updateDocInCollection("news", req.params.id, parsed.data);
     res.json(updated);
   } catch (error: any) {
     if (error?.message === "Not found") return res.status(404).json({ error: "Not found" });
@@ -435,16 +510,20 @@ app.get("/api/staff", async (req, res) => {
 
 app.post("/api/staff", requireAuth, async (req, res) => {
   try {
-    const nickname = (req.body.nickname || "").toString().trim();
-    if (!nickname) return res.status(400).json({ error: "Nickname is required" });
+    const parsed = parseBody(staffCreateSchema, stripClientId(req.body ?? {}));
+    if (parsed.success === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
 
     const localData = readDB();
-    const existing = (localData.staff || []).find((s: any) => (s.nickname || "").toString().toLowerCase() === nickname.toLowerCase());
+    const existing = (localData.staff || []).find(
+      (s: any) => s.nickname.toString().toLowerCase() === parsed.data.nickname.toLowerCase()
+    );
     if (existing) {
       return res.status(400).json({ error: "Такой никнейм уже существует" });
     }
 
-    const newStaff = { id: Date.now().toString(), ...req.body };
+    const newStaff = { id: randomUUID(), ...parsed.data };
     const saved = await saveDocToCollection("staff", newStaff);
     res.json(saved);
   } catch (error) {
@@ -455,17 +534,21 @@ app.post("/api/staff", requireAuth, async (req, res) => {
 
 app.put("/api/staff/:id", requireAuth, async (req, res) => {
   try {
-    const nickname = (req.body.nickname || "").toString().trim();
-    if (!nickname) return res.status(400).json({ error: "Nickname is required" });
+    const parsed = parseBody(staffUpdateSchema, stripClientId(req.body ?? {}));
+    if (parsed.success === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
 
     const localData = readDB();
     const list = localData.staff || [];
-    const duplicate = list.find((s: any) => s.id !== req.params.id && (s.nickname || "").toString().toLowerCase() === nickname.toLowerCase());
+    const duplicate = list.find(
+      (s: any) => s.id !== req.params.id && s.nickname.toString().toLowerCase() === parsed.data.nickname.toLowerCase()
+    );
     if (duplicate) {
       return res.status(400).json({ error: "Такой никнейм уже существует" });
     }
 
-    const updated = await updateDocInCollection("staff", req.params.id, req.body);
+    const updated = await updateDocInCollection("staff", req.params.id, parsed.data);
     res.json(updated);
   } catch (error: any) {
     if (error?.message === "Not found") return res.status(404).json({ error: "Not found" });
@@ -497,7 +580,12 @@ app.get("/api/faq", async (req, res) => {
 
 app.post("/api/faq", requireAuth, async (req, res) => {
   try {
-    const newFaq = { id: Date.now().toString(), ...req.body };
+    const parsed = parseBody(faqCreateSchema, stripClientId(req.body ?? {}));
+    if (parsed.success === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
+
+    const newFaq = { id: randomUUID(), ...parsed.data };
     const saved = await saveDocToCollection("faq", newFaq);
     res.json(saved);
   } catch (error) {
@@ -508,7 +596,12 @@ app.post("/api/faq", requireAuth, async (req, res) => {
 
 app.put("/api/faq/:id", requireAuth, async (req, res) => {
   try {
-    const updated = await updateDocInCollection("faq", req.params.id, req.body);
+    const parsed = parseBody(faqUpdateSchema, stripClientId(req.body ?? {}));
+    if (parsed.success === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
+
+    const updated = await updateDocInCollection("faq", req.params.id, parsed.data);
     res.json(updated);
   } catch (error: any) {
     if (error?.message === "Not found") return res.status(404).json({ error: "Not found" });
