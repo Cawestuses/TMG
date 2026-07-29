@@ -2,31 +2,43 @@ import React, { useState } from "react";
 import { GlowCard } from "@/src/components/GlowCard";
 import { LogIn } from "lucide-react";
 
-export function AuthPanel({ onAuth }: { onAuth: (token: string) => void }) {
+export function AuthPanel({ onAuth }: { onAuth: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
+    // Клиентская валидация: защита от пробелов
+    if (!email.trim() || !password.trim()) {
+      setError("Пожалуйста, заполните все поля");
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: email, password })
+        body: JSON.stringify({ username: email.trim(), password }),
       });
       const data = await res.json();
-      
+
       if (res.ok && data.success) {
-        localStorage.setItem("admin_token", data.token);
-        onAuth(data.token);
+        // УДАЛЕНО: localStorage.setItem("admin_token", ...)
+        // Авторизация происходит автоматически через HttpOnly Cookie!
+        onAuth();
       } else {
-        setError(data.error || "Ошибка авторизации");
+        setError(data.error || "Неверный логин или пароль");
       }
     } catch (err: any) {
       setError("Ошибка соединения с сервером");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,12 +76,13 @@ export function AuthPanel({ onAuth }: { onAuth: (token: string) => void }) {
 
           <button
             type="submit"
-            className="w-full bg-primary hover:brightness-110 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-6"
+            disabled={loading}
+            className="w-full bg-primary hover:brightness-110 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-6 disabled:opacity-50"
           >
             <LogIn className="w-5 h-5" />
-            Войти
+            {loading ? "Вход..." : "Войти"}
           </button>
-        </form> 
+        </form>
       </GlowCard>
     </div>
   );

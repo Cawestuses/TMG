@@ -38,11 +38,21 @@ export function NewsAdmin() {
     e.preventDefault();
     if (!editingPost) return;
 
+    const title = (editingPost.title || "").trim();
+    const content = (editingPost.content || "").trim();
+    const author = (editingPost.author || "Admin").trim();
+
+    // Клиентская валидация пустых строк
+    if (!title || !content) {
+      alert("Заголовок и текст новости не могут быть пустыми или состоять из пробелов!");
+      return;
+    }
+
     try {
       const postData = {
-        title: editingPost.title || "",
-        content: editingPost.content || "",
-        author: editingPost.author || "Admin",
+        title,
+        content,
+        author,
         date: editingPost.date || new Date().toISOString(),
       };
 
@@ -51,10 +61,8 @@ export function NewsAdmin() {
 
       const res = await adminFetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(postData)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(postData),
       });
 
       if (!res.ok) throw new Error("Failed to save");
@@ -63,6 +71,7 @@ export function NewsAdmin() {
       fetchNews();
     } catch (err) {
       console.error(err);
+      alert("Ошибка при сохранении новости");
     }
   };
 
@@ -104,6 +113,20 @@ export function NewsAdmin() {
   // Upload image as multipart/form-data
   const handleFileUpload = async (file: File) => {
     if (!file) return;
+
+    // Проверка типа файла
+    if (!file.type.startsWith("image/")) {
+      alert("Пожалуйста, выберите файл изображения (PNG, JPG, WebP и т.д.)");
+      return;
+    }
+
+    // Проверка размера (например, не больше 5 МБ)
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert("Размер изображения не должен превышать 5 МБ");
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
@@ -111,7 +134,7 @@ export function NewsAdmin() {
 
       const res = await adminFetch("/api/upload", {
         method: "POST",
-        body: formData
+        body: formData,
       });
 
       if (!res.ok) {
@@ -121,10 +144,10 @@ export function NewsAdmin() {
 
       const data = await res.json();
       insertAtCursor(`![](${data.url})`);
-      setGallery(prev => [data.url, ...prev]);
-    } catch (err) {
+      setGallery((prev) => [data.url, ...prev]);
+    } catch (err: any) {
       console.error(err);
-      alert("Не удалось загрузить изображение. Убедитесь, что размер файла не превышает лимит.");
+      alert(err.message || "Не удалось загрузить изображение.");
     } finally {
       setUploading(false);
     }

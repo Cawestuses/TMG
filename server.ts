@@ -29,9 +29,28 @@ const SESSION_COOKIE_NAME = "admin_session";
 const activeSessions = new Set<string>();
 
 app.set("trust proxy", 1);
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
+const isDev = process.env.NODE_ENV !== "production";
+
+app.use(
+  helmet({
+    // Отключаем строгий CSP в режиме разработки, чтобы Vite и HMR работали без ошибок
+    contentSecurityPolicy: isDev
+      ? false
+      : {
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            connectSrc: ["'self'", "https://firestore.googleapis.com", "https://*.firebaseio.com"],
+          },
+        },
+    // Оставляем критические заголовки защиты от XSS и кликджекинга активными всегда
+    crossOriginEmbedderPolicy: false,
+    noSniff: true,
+    xssFilter: true,
+  })
+);
 app.use(cookieParser());
 app.use(express.json({ limit: "100kb" }));
 
@@ -620,10 +639,15 @@ app.delete("/api/faq/:id", requireAuth, async (req, res) => {
   }
 });
 
+// --- Server Stats API (Исправленный публичный запрос к Forever Host API) ---
+// Proxy route for server stats
+// Proxy route for server stats
 // Proxy route for server stats
 app.get("/api/server-stats", async (req, res) => {
   try {
     const songCount = getSongCountFromDB();
+    
+    // 1. Проверяем кэш, чтобы не спамить внешний API
     const cachedStats = cache.get("serverStats");
     if (cachedStats) {
       const cachedData = cachedStats as any;
@@ -636,26 +660,35 @@ app.get("/api/server-stats", async (req, res) => {
     let accounts = 0;
     let levels = 0;
 
-    const apiKey = process.env.FOREVER_HOST_API_KEY;
+    // 2. Считываем API-ключ из переменных окружения
+    const apiKey = process.env.FOREVER_HOST_API_KEY?.trim();
+
+    const headers: Record<string, string> = {
+      "Accept": "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    };
+
     if (apiKey) {
-      const response = await fetch("https://api.forever-host.xyz/server/data?node=n01&gdpsid=0004", {
-        headers: {
-          "Authorization": "Bearer " + apiKey,
-          "Content-Type": "application/json"
-        }
-      });
+      headers["Authorization"] = apiKey.startsWith("Bearer ") ? apiKey : `Bearer ${apiKey}`;
+    }
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch stats: ${response.statusText}`);
-      }
+    // 3. Запрос к API Forever Host
+    const response = await fetch("https://api.forever-host.xyz/server/data?node=n01&gdpsid=0004", {
+      method: "GET",
+      headers,
+    });
 
-      const json = await response.json();
-      if (json.status !== "success" || !json.data) {
-         throw new Error(`API returned error: ${json.message || 'unknown'}`);
-      }
+    if (!response.ok) {
+      console.error(`Forever Host API HTTP Error: ${response.status} ${response.statusText}`);
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-      accounts = json.data.userCount || 0;
-      levels = json.data.levelCount || 0;
+    const json = await response.json();
+
+    // 4. Точный парсинг полей из ответа API: json.data.userCount и json.data.levelCount
+    if (json.status === "success" && json.data) {
+      accounts = json.data.userCount ?? 0;
+      levels = json.data.levelCount ?? 0;
     }
 
     const data = {
@@ -664,11 +697,15 @@ app.get("/api/server-stats", async (req, res) => {
       rates: 0,
       songs: songCount,
     };
+
+    // 5. Кэшируем успешный результат на 5 минут (300 сек)
     cache.set("serverStats", data);
 
     res.json(data);
-  } catch (error) {
-    console.error("Error fetching server stats:", error);
+  } catch (error: any) {
+    console.error("Error fetching server stats:", error.message || error);
+    
+    // При ошибке внешней сети отдаем дефолтные данные, чтобы фронтенд не ломался
     res.json({
       accounts: 0,
       levels: 0,

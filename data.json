@@ -1,12 +1,142 @@
 {
   "news": [
     {
-      "id": "1785360291528",
-      "title": "Hack",
-      "content": "Test"
+      "id": "1785332218849",
+      "date": "2026-07-29T13:36:57.358Z",
+      "author": "cat1_22",
+      "title": "релиз сайта",
+      "content": "сегодня, 29 июля, сайт тмгдпс выходит в релиз в день четырехлетия сообщества. выражаю благодарность всем, кто присутствовал и участвовал в жизни комьюнити все эти годы!\n![](https://cdn.discordapp.com/attachments/1112951517281013821/1532019003466190968/158_20260716182224.png?ex=6a6b5361&is=6a6a01e1&hm=84dffa6ac01944d68dfb214531db7b8efb915e767f5538c08c72f722187ad0ee&)"
     }
   ],
-  "staff": [],
-  "faq": [],
+  "staff": [
+    {
+      "id": "1785144393812",
+      "role": "Создатель сайта",
+      "nickname": "Кран",
+      "category": "private_server",
+      "order": 0,
+      "socialLink": "",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531559441453945004/cawestuses228.png.webp?ex=6a69a761&is=6a6855e1&hm=6e6d8873b6e7acd80b31079209e7e0e0bd10930e0f1eddbfdda711c597885b74&"
+    },
+    {
+      "id": "1785171069451",
+      "role": "овнер",
+      "nickname": "cat1_22",
+      "category": "discord_moderation",
+      "order": 1,
+      "socialLink": "",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531559435544297502/150_20260727215211.png?ex=6a69a760&is=6a6855e0&hm=3d80af5ee398bae97132d92dfbafb00a9704a72f69d092b5664db3c61940aac3&"
+    },
+    {
+      "id": "1785222846825",
+      "role": "менеджер",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560164304355358/golda9935.png?ex=6a69a80e&is=6a68568e&hm=b88cf9fa9f84548a7dfdd39e3237cf2222ec084deaaca66755b8a6e9deab3ed1&",
+      "nickname": "ciel",
+      "order": 3,
+      "socialLink": "golda9935",
+      "category": "discord_moderation"
+    },
+    {
+      "id": "1785223232180",
+      "role": "старший модератор",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560993929297981/zyzya_tmg.png?ex=6a69a8d3&is=6a685753&hm=207d2860a7cffd03763105ee7423e73e884d764c8448821884a0e8b1c74926e6&",
+      "nickname": "гордон",
+      "category": "discord_moderation",
+      "order": 4,
+      "socialLink": "zyzya_tmg"
+    },
+    {
+      "id": "1785223120463",
+      "role": "старший модератор",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560993631506462/ronvarka.png?ex=6a69a8d3&is=6a685753&hm=48b6e8cd6cf9afe4699d8a59d2f44751b5c1a50715f0228b4596f3aac8747de7&",
+      "nickname": "ronvarka",
+      "category": "discord_moderation",
+      "order": 5,
+      "socialLink": "ronvarka"
+    },
+    {
+      "id": "1785223317880",
+      "role": "старший модератор",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560994210582588/devvvvvil.png_2.webp?ex=6a69a8d4&is=6a685754&hm=e5849898707064c612f9d74651a2614052fb38972c949ff2412191a659623cc5&",
+      "nickname": "devvvvvil",
+      "category": "discord_moderation",
+      "order": 6,
+      "socialLink": "devvvvvil"
+    },
+    {
+      "id": "1785223378411",
+      "role": "модератор",
+      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560994504179845/goshabest_62719.png.webp?ex=6a69a8d4&is=6a685754&hm=6b854d1b247e60c2aa4ae3288fa89fbc345542dd1b3d0467fda187795a04e6fc&",
+      "nickname": "Гоша",
+      "category": "discord_moderation",
+      "order": 7,
+      "socialLink": "goshabest_62719"
+    },
+    {
+      "id": "1785223488424",
+      "role": "модератор ",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/702542262030041129/5ca57790455971ded278ef4bef680132.webp?size=2048",
+      "nickname": "fisten",
+      "category": "discord_moderation",
+      "order": 8,
+      "socialLink": ""
+    }
+  ],
+  "faq": [
+    {
+      "id": "1785140912095",
+      "answer": "прикол самой гд. по пути к папке с игрой присутствует кириллица. для исправления проблемы нужно перенести папку с гдпс в корень диска",
+      "order": 1,
+      "question": "Отсутствует музыка (в том числе и в оригинальных уровнях)"
+    },
+    {
+      "id": "1785141353322",
+      "answer": "если первая, то возможно нужно переустановить direct x\\видеодрайвера. также, если дело о windows 7 и раньше, то обе ошибки говорят о *несовместимости* 2.206+ с системой. контрится vxkex/second system/ocapi",
+      "order": 2,
+      "question": "Отсутствует  Xinput1_4.dll или ошибка Kernel32.dll"
+    },
+    {
+      "id": "1785141390599",
+      "answer": "означает отсутствие нормальных видеодров. (обычно случается в виртуальных машинах) контрится обновлением видеодрайверов",
+      "question": "Ошибка libcocos2d.dll",
+      "order": 3
+    },
+    {
+      "id": "1785141418591",
+      "answer": "нужно патчить систему с помощью [OneCoreApi](https://github.com/Skulltrail192/One-Core-API-Binaries) этот патч даст возможность запустить любую версию 2.2",
+      "order": 4,
+      "question": "Не найдена точка доступа в dll ws2_32.dll (win xp)"
+    },
+    {
+      "id": "1785141444849",
+      "answer": "нет visual studio 2008. обычно возникает на сборках винды, где тот, кто делал сборку *случайно* выпилил это из системы, но может быть и на оригинальных образах. возникает на всех windows. для контры поставить непосредственно vs2008",
+      "order": 5,
+      "question": "Ошибка при инициализации приложения 0xc0150002"
+    },
+    {
+      "id": "1785141471253",
+      "answer": "либо битые файлы/dll у гд, либо несовместимость системы. для контры нужно попробовать повторно извлечь архив с гдпс или обновить слой совместимости",
+      "question": "The application was unable to start correctly 0xc000007b",
+      "order": 6
+    },
+    {
+      "id": "1785141506982",
+      "answer": "необходимо установить/обновить net frimework. 4 версии для гд должно хватить\nчто забавно, эта ошибка появляется на 2.206+",
+      "question": "Ошибка api-ms-win-crt-runtime-l1-1-0.dll",
+      "order": 7
+    },
+    {
+      "id": "1785141556158",
+      "answer": "нужно удалить geode. классический геод не совместим с хр/7. совместимая версия находится во вкладке скачивания",
+      "question": "Ошибка инициализации 0xc000000d",
+      "order": 8
+    },
+    {
+      "id": "1785141573582",
+      "answer": "этот файл появился в windows 8. в win7 поможет vkkex, для хр - ocapi",
+      "order": 9,
+      "question": "Отсутствует api-ms-win-devices-querly-l1-1-0.dll"
+    }
+  ],
   "songs": 553
 }

@@ -1,5 +1,6 @@
 """
-pip install playwright beautifulsoup4
+Команды для установки зависимостей:
+pip install playwright beautifulsoup4 python-dotenv
 playwright install chromium
 python count_songs.py
 """
@@ -9,10 +10,15 @@ import json
 import os
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
-BASE_URL = "https://n01.forever-host.xyz/0004/panel"
-USERNAME = "bot01"
-PASSWORD = "gold31122009"
+# Загружаем переменные окружения из .env файла
+load_dotenv()
+
+BASE_URL = os.getenv("GDPS_BASE_URL", "https://n01.forever-host.xyz/0004/panel")
+USERNAME = os.getenv("GDPS_USERNAME")
+PASSWORD = os.getenv("GDPS_PASSWORD")
+
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
 
 
@@ -74,7 +80,6 @@ async def get_next_button(page):
     Ищет активную кнопку с иконкой chevron-right (lucide-chevron-right).
     Возвращает элемент или None если кнопка disabled / не найдена.
     """
-    # Кнопка содержит SVG с классом lucide-chevron-right
     buttons = await page.query_selector_all("button:has(svg.lucide-chevron-right)")
     for btn in buttons:
         disabled = await btn.get_attribute("disabled")
@@ -84,6 +89,11 @@ async def get_next_button(page):
 
 
 async def main():
+    # Валидация учетных данных перед запуском браузера
+    if not USERNAME or not PASSWORD:
+        print("❌ ОШИБКА: Переменные GDPS_USERNAME или GDPS_PASSWORD не найдены в файле .env!")
+        return
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -118,4 +128,5 @@ async def main():
         await browser.close()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
