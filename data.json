@@ -1,5 +1,11 @@
 {
-  "news": [],
+  "news": [
+    {
+      "id": "1785360291528",
+      "title": "Hack",
+      "content": "Test"
+    }
+  ],
   "staff": [],
   "faq": [],
   "songs": 553
