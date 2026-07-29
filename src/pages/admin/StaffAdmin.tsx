@@ -52,7 +52,12 @@ export function StaffAdmin() {
         body: JSON.stringify(memberData)
       });
 
-      if (!res.ok) throw new Error("Failed to save");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = json?.error || "Failed to save";
+        alert(msg);
+        return;
+      }
 
       setEditingMember(null);
       fetchStaff();

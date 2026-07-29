@@ -379,6 +379,15 @@ app.get("/api/staff", async (req, res) => {
 
 app.post("/api/staff", requireAuth, async (req, res) => {
   try {
+    const nickname = (req.body.nickname || "").toString().trim();
+    if (!nickname) return res.status(400).json({ error: "Nickname is required" });
+
+    const localData = readDB();
+    const existing = (localData.staff || []).find((s: any) => (s.nickname || "").toString().toLowerCase() === nickname.toLowerCase());
+    if (existing) {
+      return res.status(400).json({ error: "Такой никнейм уже существует" });
+    }
+
     const newStaff = { id: Date.now().toString(), ...req.body };
     const saved = await saveDocToCollection("staff", newStaff);
     res.json(saved);
@@ -390,6 +399,16 @@ app.post("/api/staff", requireAuth, async (req, res) => {
 
 app.put("/api/staff/:id", requireAuth, async (req, res) => {
   try {
+    const nickname = (req.body.nickname || "").toString().trim();
+    if (!nickname) return res.status(400).json({ error: "Nickname is required" });
+
+    const localData = readDB();
+    const list = localData.staff || [];
+    const duplicate = list.find((s: any) => s.id !== req.params.id && (s.nickname || "").toString().toLowerCase() === nickname.toLowerCase());
+    if (duplicate) {
+      return res.status(400).json({ error: "Такой никнейм уже существует" });
+    }
+
     const updated = await updateDocInCollection("staff", req.params.id, req.body);
     res.json(updated);
   } catch (error: any) {
