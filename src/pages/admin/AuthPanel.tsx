@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { GlowCard } from "@/src/components/GlowCard";
 import { LogIn } from "lucide-react";
-import { adminLogin } from "@/src/lib/adminApi";
 
-export function AuthPanel({ onAuth }: { onAuth: () => void }) {
+export function AuthPanel({ onAuth }: { onAuth: (token: string) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,14 +12,20 @@ export function AuthPanel({ onAuth }: { onAuth: () => void }) {
     setError("");
 
     try {
-      const result = await adminLogin(email, password);
-
-      if (result.success) {
-        onAuth();
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: email, password })
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        localStorage.setItem("admin_token", data.token);
+        onAuth(data.token);
       } else {
-        setError(result.error || "Ошибка авторизации");
+        setError(data.error || "Ошибка авторизации");
       }
-    } catch {
+    } catch (err: any) {
       setError("Ошибка соединения с сервером");
     }
   };
@@ -64,7 +69,7 @@ export function AuthPanel({ onAuth }: { onAuth: () => void }) {
             <LogIn className="w-5 h-5" />
             Войти
           </button>
-        </form>
+        </form> 
       </GlowCard>
     </div>
   );
