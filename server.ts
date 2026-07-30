@@ -186,10 +186,18 @@ try {
 }
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
-const UPLOAD_DIR = path.join(PUBLIC_DIR, "uploads");
+// Allow configuring a persistent local uploads directory for production
+// Set LOCAL_UPLOADS_PATH to an absolute or relative path mounted to a persistent volume
+const envUploadsPath = process.env.LOCAL_UPLOADS_PATH?.trim();
+const UPLOAD_DIR = envUploadsPath
+  ? path.resolve(envUploadsPath)
+  : path.join(PUBLIC_DIR, "uploads");
+
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
+
+console.log(`Uploads directory: ${UPLOAD_DIR} (${envUploadsPath ? 'from LOCAL_UPLOADS_PATH' : 'default public/uploads'})`);
 
 app.use("/uploads", express.static(UPLOAD_DIR));
 
@@ -425,28 +433,31 @@ app.post("/api/upload", requireAuth, (req, res) => {
         mimetype: mimetypeForImageType(detectedType),
       };
 
-      const resolvedUrl = await resolveUploadUrl(uploadFile, {
-        uploadToCloud: async (cloudFile, destination) => {
-          if (!hasServiceAccount || !storageBucketName) {
-            throw new Error("Cloud upload is unavailable");
-          }
+      let resolvedUrl: string;
 
-          const bucket = getStorage().bucket();
-          await bucket.upload(cloudFile.path, {
-            destination,
-            public: true,
-            metadata: {
-              contentType: cloudFile.mimetype,
-            },
-          });
+      if (hasServiceAccount && storageBucketName) {
+        resolvedUrl = await resolveUploadUrl(uploadFile, {
+          uploadToCloud: async (cloudFile, destination) => {
+            const bucket = getStorage().bucket();
+            await bucket.upload(cloudFile.path, {
+              destination,
+              public: true,
+              metadata: {
+                contentType: cloudFile.mimetype,
+              },
+            });
 
-          if (fs.existsSync(cloudFile.path)) {
-            fs.unlinkSync(cloudFile.path);
-          }
+            if (fs.existsSync(cloudFile.path)) {
+              fs.unlinkSync(cloudFile.path);
+            }
 
-          return `https://storage.googleapis.com/${bucket.name}/${destination}`;
-        },
-      });
+            return `https://storage.googleapis.com/${bucket.name}/${destination}`;
+          },
+        });
+      } else {
+        // No cloud credentials — fall back to local uploads (served from /uploads)
+        resolvedUrl = await resolveUploadUrl(uploadFile);
+      }
 
       return res.json({ url: resolvedUrl });
     } catch (error: any) {
