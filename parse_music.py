@@ -1,23 +1,18 @@
-"""
-Команды для установки зависимостей:
-pip install playwright beautifulsoup4 python-dotenv
-playwright install chromium
-python count_songs.py
-"""
-
 import asyncio
-import json
 import os
-from playwright.async_api import async_playwright
-from bs4 import BeautifulSoup
+import re
+import sys
+import json
 from dotenv import load_dotenv
+from playwright.async_api import async_playwright
 
-# Загружаем переменные окружения из .env файла
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
 load_dotenv()
-
-BASE_URL = os.getenv("GDPS_BASE_URL", "https://n01.forever-host.xyz/0004/panel")
-USERNAME = os.getenv("GDPS_USERNAME")
-PASSWORD = os.getenv("GDPS_PASSWORD")
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
 
@@ -44,88 +39,96 @@ def save_song_count(count: int):
 
     print(f"[*] Saved song count to {DATA_FILE}: {count}")
 
+BASE_URL = os.getenv("GDPS_BASE_URL", "").rstrip('/')
+USERNAME = os.getenv("GDPS_USERNAME")
+PASSWORD = os.getenv("GDPS_PASSWORD")
 
-async def login(page):
-    await page.goto(f"{BASE_URL}/login", wait_until="networkidle")
-    await page.wait_for_selector('input[type="password"]', timeout=10000)
-    await page.fill('input[type="text"], input[name*="user"], input[name*="login"]', USERNAME)
-    await page.fill('input[type="password"]', PASSWORD)
-    await page.click('button[type="submit"], input[type="submit"]')
-    await page.wait_for_load_state("networkidle")
-    await page.wait_for_timeout(2000)
-    print(f"[*] После логина: {page.url}")
-
-
-async def count_songs_on_page(page) -> int:
-    await page.wait_for_load_state("networkidle")
-    await page.wait_for_timeout(1500)
-
-    html = await page.content()
-    soup = BeautifulSoup(html, "html.parser")
-
-    rows = soup.select("table tbody tr")
-    if rows:
-        return len(rows)
-
-    for sel in ["[class*='song']", "[class*='track']", "[class*='music']", "[class*='item']"]:
-        items = await page.query_selector_all(sel)
-        if items:
-            return len(items)
-
-    return 0
-
-
-async def get_next_button(page):
-    """
-    Ищет активную кнопку с иконкой chevron-right (lucide-chevron-right).
-    Возвращает элемент или None если кнопка disabled / не найдена.
-    """
-    buttons = await page.query_selector_all("button:has(svg.lucide-chevron-right)")
-    for btn in buttons:
-        disabled = await btn.get_attribute("disabled")
-        if disabled is None:
-            return btn
-    return None
+SONGS_PER_PAGE = 20
 
 
 async def main():
-    # Валидация учетных данных перед запуском браузера
-    if not USERNAME or not PASSWORD:
-        print("❌ ОШИБКА: Переменные GDPS_USERNAME или GDPS_PASSWORD не найдены в файле .env!")
+    if not all([BASE_URL, USERNAME, PASSWORD]):
+        print("[!] Ошибка: Не все переменные окружения (.env) загружены!")
         return
 
+    login_url = f"{BASE_URL}/login"
+    target_url = f"{BASE_URL}/music/list"
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        browser = await p.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
 
-        print("=== Авторизация ===")
-        await login(page)
+        try:
+            print(f"[*] Переход на страницу авторизации: {login_url}")
+            await page.goto(login_url, wait_until="networkidle")
 
-        print("=== Список музыки ===")
-        await page.goto(f"{BASE_URL}/music/list", wait_until="networkidle")
-        await page.wait_for_timeout(2000)
+            username_input = page.locator('input[type="text"], input[type="email"], input[placeholder*="Логин" i], input[placeholder*="username" i]').first
+            await username_input.wait_for(state="visible", timeout=10000)
+            await username_input.fill(USERNAME)
 
-        total = 0
-        page_num = 1
+            password_input = page.locator('input[type="password"]').first
+            await password_input.fill(PASSWORD)
 
-        while True:
-            count = await count_songs_on_page(page)
-            print(f"[*] Страница {page_num}: {count} песен")
-            total += count
+            submit_button = page.locator('button:has-text("Войти"), button:has-text("Вход"), button[type="submit"]').first
+            await submit_button.click()
 
-            btn = await get_next_button(page)
-            if not btn:
-                print("[*] Кнопка 'вперёд' отключена или не найдена — это последняя страница.")
-                break
-
-            await btn.click()
             await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(1500)
-            page_num += 1
+            await asyncio.sleep(2)
 
-        print(f"\n✅ Итого песен: {total} (страниц: {page_num})")
-        save_song_count(total)
-        await browser.close()
+            print(f"[*] Переходим к списку музыки: {target_url}")
+            await page.goto(target_url, wait_until="networkidle")
+
+            pagination_locator = page.locator('span', has_text=re.compile(r"Страница\s+\d+\s+из", re.I)).first
+            await pagination_locator.wait_for(state="visible", timeout=15000)
+
+            text = await pagination_locator.text_content()
+            text = text.strip()
+
+            numbers = re.findall(r'\d+', text)
+            if len(numbers) >= 2:
+                total_pages = int(numbers[1])
+                print(f"[*] Всего страниц (N): {total_pages}")
+
+                last_page_url = f"{target_url}?page={total_pages}"
+                print(f"[*] Переходим на последнюю страницу: {last_page_url}")
+                await page.goto(last_page_url, wait_until="networkidle")
+                await pagination_locator.wait_for(state="visible", timeout=10000)
+
+                song_items = page.locator('tbody tr')
+                
+                if await song_items.count() == 0:
+                    song_items = page.locator('.grid > div, .flex-col > .items-center')
+
+                last_page_songs_count = await song_items.count()
+                print(f"[*] Песен на последней странице: {last_page_songs_count}")
+
+                if total_pages == 1:
+                    total_songs = last_page_songs_count
+                else:
+                    total_songs = ((total_pages - 1) * SONGS_PER_PAGE) + last_page_songs_count
+
+                print("=" * 40)
+                print(f"[УСПЕХ] Общее количество песен на сервере: {total_songs}")
+                print("=" * 40)
+
+            else:
+                print("[!] Не удалось извлечь количество страниц.")
+
+        except Exception as e:
+            print(f"[!] Ошибка во время выполнения: {e}")
+
+        finally:
+            # Сохранить найденное значение total_songs (если определено) в data.json
+            try:
+                total = locals().get('total_songs') or locals().get('total') or 0
+                save_song_count(int(total))
+            except Exception as e:
+                print(f"[!] Не удалось сохранить количество песен: {e}")
+            try:
+                await browser.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

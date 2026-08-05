@@ -12,8 +12,8 @@ export function Downloads() {
       description: t("downloads.desc_android"),
       version: "2.2081",
       links: [
-        { label: t("downloads.btn_gdrive"), url: "https://drive.google.com/file/d/1uRtqdx7K4__j6YCRsR8MjA9MJkg5KiZQ/view" },
-        { label: t("downloads.btn_alternative"), url: "https://buildercdn.forever-host.xyz/download/n01/0004?platform=android", secondary: true }
+        { label: t("downloads.btn_gdrive"), url: "https://drive.google.com/file/d/12G1wORVVEsPW8GBsB9gCklpa4l8I48tQ/view?usp=drivesdk" },
+        { label: t("downloads.btn_alternative"), url: "https://buildercdn.gdps-forever.host/download/n01/0004?platform=android", secondary: true }
       ]
     },
     {
@@ -22,8 +22,8 @@ export function Downloads() {
       description: t("downloads.desc_windows"),
       version: "2.2081",
       links: [
-        { label: t("downloads.btn_gdrive"), url: "https://drive.google.com/file/d/1zNUNfJr5TD6qwqRehEMY4eWEvI31PQvg/view" },
-        { label: t("downloads.btn_alternative"), url: "https://buildercdn.forever-host.xyz/download/n01/0004?platform=windows", secondary: true }
+        { label: t("downloads.btn_gdrive"), url: "https://drive.google.com/file/d/1Ic_wbOMY7pyD2Kxgef-H4H9FD3aayP5l/view?usp=drivesdk" },
+        { label: t("downloads.btn_alternative"), url: "https://buildercdn.gdps-forever.host/download/n01/0004?platform=windows", secondary: true }
       ]
     },
     {
@@ -32,9 +32,10 @@ export function Downloads() {
       description: t("downloads.desc_windows_geode"),
       version: "2.2081",
       links: [
-        { label: t("downloads.btn_archive"), url: "https://drive.google.com/file/d/1_FWOgpAUtUP-JF0NrGQijQRgLfokNLcJ/view" }
+        { label: t("downloads.btn_archive"), url: "https://drive.google.com/file/d/1vL0SaCjXhuKmeMfq5n8NuBP_Dd0w3QuX/view?usp=drivesdk" }
       ]
     },
+    /*
     {
       title: "Android Geode 1.8.0",
       icon: <Smartphone className="w-6 h-6 text-accent" />,
@@ -44,13 +45,14 @@ export function Downloads() {
         { label: t("downloads.btn_apk"), url: "https://drive.google.com/file/d/1amYga7queRyH_SOishryCvhrGbOiMdL8/view?usp=drivesdk" }
       ]
     },
+    */
     {
-      title: "Android Geode 1.6.1",
+      title: "Android Geode 1.8.0",
       icon: <Smartphone className="w-6 h-6 text-gray-400" />,
       description: t("downloads.desc_android_geode_161"),
       version: "⇐ 2.207",
       links: [
-        { label: t("downloads.btn_apk"), url: "https://drive.google.com/file/d/1RAOr2QD7XtdExyYxyvD-PvAGUDyFclz7/view" }
+        { label: t("downloads.btn_apk"), url: "https://drive.google.com/file/d/1amYga7queRyH_SOishryCvhrGbOiMdL8/view?usp=drivesdk" }
       ]
     },
     {
@@ -59,14 +61,14 @@ export function Downloads() {
       description: t("downloads.desc_vs"),
       version: "Win 2008-2022",
       links: [
-        { label: t("downloads.btn_pack"), url: "https://drive.google.com/file/d/1O-7bjXIBeQArpQEuQ42hxx3XZL56dEXr/view" }
+        { label: t("downloads.btn_pack"), url: "https://drive.google.com/file/d/1O-7bjXIBeQArpQEuQ42hxx3XZL56dEXr/view?usp=sharing" }
       ]
     }
   ];
 
   const usefulLinks = [
-    { label: t("downloads.link_switcher"), url: "https://n01.forever-host.xyz/0004", copyOnly: true },
-    { label: t("downloads.link_panel"), url: "https://n01.forever-host.xyz/0004/panel" },
+    { label: t("downloads.link_switcher"), url: "https://gdps-forever.host/0004", copyOnly: true },
+    { label: t("downloads.link_panel"), url: "https://n01.gdps-forever.host/0004/panel" },
   ];
 
   const handleCopyLink = async (url: string) => {

@@ -658,7 +658,6 @@ app.get("/api/server-stats", async (req, res) => {
   try {
     const songCount = getSongCountFromDB();
     
-    // 1. Проверяем кэш, чтобы не спамить внешний API
     const cachedStats = cache.get("serverStats");
     if (cachedStats) {
       const cachedData = cachedStats as any;
@@ -671,7 +670,6 @@ app.get("/api/server-stats", async (req, res) => {
     let accounts = 0;
     let levels = 0;
 
-    // 2. Считываем API-ключ из переменных окружения
     const apiKey = process.env.FOREVER_HOST_API_KEY?.trim();
 
     const headers: Record<string, string> = {
@@ -683,8 +681,7 @@ app.get("/api/server-stats", async (req, res) => {
       headers["Authorization"] = apiKey.startsWith("Bearer ") ? apiKey : `Bearer ${apiKey}`;
     }
 
-    // 3. Запрос к API Forever Host
-    const response = await fetch("https://api.forever-host.xyz/server/data?node=n01&gdpsid=0004", {
+    const response = await fetch("https://api.gdps-forever.host/server/data?node=n01&gdpsid=0004", {
       method: "GET",
       headers,
     });

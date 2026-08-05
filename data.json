@@ -15,8 +15,17 @@
       "nickname": "Кран",
       "category": "private_server",
       "order": 0,
+      "socialLink": "C1ve",
+      "avatarUrl": "/uploads/80b15560-2c98-4df2-ba64-32ce8cd287e3.jpg"
+    },
+    {
+      "id": "a1cffe21-7f14-40c9-813b-cae3aef6efec",
+      "role": "модератор TMgdps",
+      "nickname": "Ян_ASS_ильник люблю <3",
+      "category": "private_server",
+      "order": 0,
       "socialLink": "",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531559441453945004/cawestuses228.png.webp?ex=6a69a761&is=6a6855e1&hm=6e6d8873b6e7acd80b31079209e7e0e0bd10930e0f1eddbfdda711c597885b74&"
+      "avatarUrl": "/uploads/ab109a31-ff5e-40a0-b3fa-5632953aac8b.png"
     },
     {
       "id": "1785171069451",
@@ -24,65 +33,71 @@
       "nickname": "cat1_22",
       "category": "discord_moderation",
       "order": 1,
-      "socialLink": "",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531559435544297502/150_20260727215211.png?ex=6a69a760&is=6a6855e0&hm=3d80af5ee398bae97132d92dfbafb00a9704a72f69d092b5664db3c61940aac3&"
+      "socialLink": "cat1_22",
+      "avatarUrl": "/uploads/6c2f0412-6430-45a6-97f1-617919d1bb55.png"
     },
     {
       "id": "1785222846825",
       "role": "менеджер",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560164304355358/golda9935.png?ex=6a69a80e&is=6a68568e&hm=b88cf9fa9f84548a7dfdd39e3237cf2222ec084deaaca66755b8a6e9deab3ed1&",
-      "nickname": "ciel",
       "order": 3,
       "socialLink": "golda9935",
-      "category": "discord_moderation"
+      "category": "discord_moderation",
+      "nickname": "Kanade Yoisaki люблю <3",
+      "avatarUrl": "/uploads/61dc0d57-b398-4f4f-8a7b-710647b76af2.png"
     },
     {
       "id": "1785223232180",
       "role": "старший модератор",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560993929297981/zyzya_tmg.png?ex=6a69a8d3&is=6a685753&hm=207d2860a7cffd03763105ee7423e73e884d764c8448821884a0e8b1c74926e6&",
       "nickname": "гордон",
       "category": "discord_moderation",
       "order": 4,
-      "socialLink": "zyzya_tmg"
+      "socialLink": "zyzya_tmg",
+      "avatarUrl": "/uploads/0b2a4bab-920d-4f55-92b6-6ae013724232.png"
     },
     {
       "id": "1785223120463",
       "role": "старший модератор",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560993631506462/ronvarka.png?ex=6a69a8d3&is=6a685753&hm=48b6e8cd6cf9afe4699d8a59d2f44751b5c1a50715f0228b4596f3aac8747de7&",
       "nickname": "ronvarka",
       "category": "discord_moderation",
       "order": 5,
-      "socialLink": "ronvarka"
+      "socialLink": "ronvarka",
+      "avatarUrl": "/uploads/ec47217b-9320-43d5-8615-0bf57d06a54d.png"
     },
     {
       "id": "1785223317880",
       "role": "старший модератор",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560994210582588/devvvvvil.png_2.webp?ex=6a69a8d4&is=6a685754&hm=e5849898707064c612f9d74651a2614052fb38972c949ff2412191a659623cc5&",
       "nickname": "devvvvvil",
       "category": "discord_moderation",
       "order": 6,
-      "socialLink": "devvvvvil"
+      "socialLink": "devvvvvil",
+      "avatarUrl": "/uploads/8088daa1-fec5-4c81-97db-7bb8927f65af.png"
     },
     {
       "id": "1785223378411",
       "role": "модератор",
-      "avatarUrl": "https://cdn.discordapp.com/attachments/1326313231035138119/1531560994504179845/goshabest_62719.png.webp?ex=6a69a8d4&is=6a685754&hm=6b854d1b247e60c2aa4ae3288fa89fbc345542dd1b3d0467fda187795a04e6fc&",
       "nickname": "Гоша",
       "category": "discord_moderation",
       "order": 7,
-      "socialLink": "goshabest_62719"
+      "socialLink": "goshabest_62719",
+      "avatarUrl": "/uploads/ab66627d-cdfa-40c0-ad0d-2531deb57400.png"
     },
     {
       "id": "1785223488424",
-      "role": "модератор ",
-      "avatarUrl": "https://cdn.discordapp.com/avatars/702542262030041129/5ca57790455971ded278ef4bef680132.webp?size=2048",
       "nickname": "fisten",
       "category": "discord_moderation",
       "order": 8,
-      "socialLink": ""
+      "role": "модератор",
+      "socialLink": ".fisten.",
+      "avatarUrl": "/uploads/083bee92-cc02-490d-94e2-8ac2b351ad90.png"
     }
   ],
   "faq": [
+    {
+      "id": "50f800e8-65e6-4c7d-b1ba-8bfb3d8cdd72",
+      "question": "Как скачать/загрузить приватку?",
+      "order": 0,
+      "answer": "1. Воспользоваться модом Geode GDPS Switcher (https://geode-sdk.org/mods/km7dev.gdps-switcher). После установки перейдите на вкладку с сервером и нажмите на кнопку «New». Здесь вписываете название сервера (какое хотите) и вставляете ссылку сервера GDPS Switcher (еë можно найти на странице «Скачать» в самом низу). После сохранения всë готово!\n2. Можно скачать приватку локально. Выбираете нужный вам вариант для скачивания (Windows или Android + с Geode или без).\nWindows: загрузите архив. Распакуйте архив в отдельную папку и запустите исполняемый файл (TMGdps.exe).\nAndroid: скачайте .apk файл и установите его после загрузки.\nЕсли у вас появятся ошибки или проблемы — почитайте FAQ ниже."
+    },
     {
       "id": "1785140912095",
       "answer": "прикол самой гд. по пути к папке с игрой присутствует кириллица. для исправления проблемы нужно перенести папку с гдпс в корень диска",
@@ -138,5 +153,5 @@
       "question": "Отсутствует api-ms-win-devices-querly-l1-1-0.dll"
     }
   ],
-  "songs": 553
+  "songs": 589
 }
