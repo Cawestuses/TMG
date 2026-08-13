@@ -67,7 +67,7 @@ export function Downloads() {
   ];
 
   const usefulLinks = [
-    { label: t("downloads.link_switcher"), url: "https://gdps-forever.host/0004", copyOnly: true },
+    { label: t("downloads.link_switcher"), url: "https://n01.forever-host.xyz/0004", copyOnly: true },
     { label: t("downloads.link_panel"), url: "https://n01.gdps-forever.host/0004/panel" },
   ];
 
